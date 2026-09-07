@@ -1,10 +1,27 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
-export const startInterview = async (patientName, language, mode = 'allopathic', abhaId = null, abhaNumber = null) => {
+export const identifyPatient = async ({ hasAbha, abhaId = null, basicInfo = null, language = 'en', mode = 'allopathic' }) => {
+  const res = await fetch(`${BASE_URL}/identify/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      has_abha: hasAbha,
+      abha_id: abhaId,
+      basic_info: basicInfo,
+      language: language,
+      mode: mode,
+    }),
+  });
+  if (!res.ok) throw new Error('Patient identification failed');
+  return res.json();
+};
+
+export const startInterview = async (patientName, language, mode = 'allopathic', abhaId = null, abhaNumber = null, sessionId = null) => {
   const res = await fetch(`${BASE_URL}/interview/start/`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      session_id: sessionId || null,
       patient_name: patientName,
       language: language,
       mode: mode,
@@ -15,6 +32,20 @@ export const startInterview = async (patientName, language, mode = 'allopathic',
   if (!res.ok) throw new Error('Failed to start interview');
   return res.json();
 };
+
+export const toggleAssistedMode = async (sessionId, assisted = true) => {
+  const res = await fetch(`${BASE_URL}/interview/assisted/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      assisted: assisted,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to update assisted mode');
+  return res.json();
+};
+
 
 export const respondInterview = async (sessionId, answer, inputMode = 'touch', language = 'en') => {
   const res = await fetch(`${BASE_URL}/interview/respond/`, {
@@ -167,4 +198,21 @@ export const generateToken = async (sessionId) => {
   if (!res.ok) throw new Error('Token generation failed');
   return res.json();
 };
+
+export const getDoctorLiveQueue = async (authToken) => {
+  const res = await fetch(`${BASE_URL}/doctor/queue/`, {
+    headers: { 'Authorization': `Token ${authToken}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch doctor queue');
+  return res.json();
+};
+
+export const getDoctorBrief = async (sessionId, authToken) => {
+  const res = await fetch(`${BASE_URL}/doctor/brief/${sessionId}/`, {
+    headers: { 'Authorization': `Token ${authToken}` },
+  });
+  if (!res.ok) throw new Error('Failed to fetch patient brief');
+  return res.json();
+};
+
 

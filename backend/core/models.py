@@ -3,6 +3,8 @@ from django.db import models
 
 class Patient(models.Model):
     name = models.CharField(max_length=255)
+    age = models.PositiveIntegerField(null=True, blank=True)
+    sex = models.CharField(max_length=20, null=True, blank=True)
     language = models.CharField(max_length=10, default="en")
     preferred_language = models.CharField(max_length=10, default="en")
     abha_id = models.CharField(max_length=100, null=True, blank=True)
@@ -46,6 +48,7 @@ class Session(models.Model):
         null=True, blank=True
     )
     pushed_to_abdm = models.BooleanField(default=False)
+    assisted_mode = models.BooleanField(default=False)
 
     # Token & receptionist validation fields
     token = models.CharField(max_length=10, null=True, blank=True, unique=True)
@@ -64,6 +67,18 @@ class Session(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self): return f"Session {self.pk} ({self.mode}) — {self.patient.name}"
+
+
+class LinkedRecord(models.Model):
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="linked_records")
+    record_type = models.CharField(max_length=50, default="health_record")
+    title = models.CharField(max_length=255)
+    details = models.JSONField(default=dict)
+    date = models.CharField(max_length=50, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return f"{self.title} ({self.session_id})"
+
 
 
 class Transcript(models.Model):
@@ -114,8 +129,27 @@ class Summary(models.Model):
     structured_json = models.JSONField(default=dict)
     edited_by_doctor = models.BooleanField(default=False)
     doctor_notes = models.TextField(null=True, blank=True)
+    doctor_instructions = models.JSONField(default=dict, blank=True) # Doctor post-consultation instructions for Teach-Back
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class AuditLog(models.Model):
+    class Actor(models.TextChoices):
+        PATIENT = "PATIENT", "Patient"
+        AI = "AI", "AI Assistant"
+        STAFF = "STAFF", "Staff"
+        DOCTOR = "DOCTOR", "Doctor"
+        SYSTEM = "SYSTEM", "System"
+
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name="audit_logs")
+    actor = models.CharField(max_length=20, choices=Actor.choices, default=Actor.SYSTEM)
+    event_type = models.CharField(max_length=100)
+    details = models.JSONField(default=dict, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["timestamp"]
 
 
 class ConsentRecord(models.Model):

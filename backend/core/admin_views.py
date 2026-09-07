@@ -41,6 +41,7 @@ class QueueAdminView(APIView):
                 "created_at": s.created_at.isoformat(),
                 "waiting_minutes": waiting_minutes,
                 "needed_clarification": s.needed_clarification,
+                "assisted_mode": s.assisted_mode,
             })
 
         # Base counts for today

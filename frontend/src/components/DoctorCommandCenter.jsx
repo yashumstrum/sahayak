@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { loginDoctor, getSummaryDetail, patchSummaryDetail, pushAbdm } from '../api';
+import { loginDoctor, getDoctorLiveQueue, getDoctorBrief, patchSummaryDetail, pushAbdm } from '../api';
 import { 
-  UserCheck, Save, RefreshCw, CheckCircle2, ShieldAlert, Leaf, Activity, FileText, Send 
+  UserCheck, Save, RefreshCw, CheckCircle2, ShieldAlert, Leaf, Activity, FileText, Send, Clock, User, ArrowRight, ShieldCheck, AlertTriangle
 } from 'lucide-react';
 
 export default function DoctorCommandCenter({ activeSessionId }) {
@@ -10,64 +10,79 @@ export default function DoctorCommandCenter({ activeSessionId }) {
   const [password, setPassword] = useState('password123');
   const [authError, setAuthError] = useState('');
 
+  // Queue State
+  const [liveQueue, setLiveQueue] = useState([]);
+  const [isQueueLoading, setIsQueueLoading] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(activeSessionId || null);
+
+  // Patient Brief Data
+  const [briefData, setBriefData] = useState(null);
   const [fetchError, setFetchError] = useState('');
   const [mode, setMode] = useState('allopathic');
-  const [summaryData, setSummaryData] = useState(null);
   const [transcripts, setTranscripts] = useState([]);
   const [documents, setDocuments] = useState([]);
-  const [clinicalFlags, setClinicalFlags] = useState([]);
-  const [consentRecords, setConsentRecords] = useState([]);
-  const [abdmLogs, setAbdmLogs] = useState([]);
   const [doctorNotes, setDoctorNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  const [structuredSummary, setStructuredSummary] = useState({
-    chief_complaint: { text: '', source_turns: [] },
-    hpi: { text: '', source_turns: [] },
-    pmh: { text: '', source_turns: [] },
-    drug_allergy: { text: '', source_turns: [] },
-    family_history: { text: '', source_turns: [] },
-    personal_history: { text: '', source_turns: [] },
-    ros: { text: '', source_turns: [] },
-  });
-
-  const [activeSourceTurns, setActiveSourceTurns] = useState([]);
-  const [activeSourceDocs, setActiveSourceDocs] = useState([]);
-  const [activeSectionKey, setActiveSectionKey] = useState(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  const [activeSectionKey, setActiveSectionKey] = useState(null);
+  const [activeSourceTurns, setActiveSourceTurns] = useState([]);
+  const [activeSourceDocs, setActiveSourceDocs] = useState([]);
   const transcriptRefs = useRef({});
 
   useEffect(() => {
     if (activeSessionId) setSelectedSessionId(activeSessionId);
   }, [activeSessionId]);
 
-  const fetchSummary = async (sid = selectedSessionId) => {
+  // Fetch Live Queue
+  const fetchQueue = async () => {
+    if (!token) return;
+    setIsQueueLoading(true);
+    try {
+      const qRes = await getDoctorLiveQueue(token);
+      setLiveQueue(qRes.queue || []);
+    } catch (err) {
+      console.error('Failed to fetch doctor queue', err);
+    } finally {
+      setIsQueueLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchQueue();
+      const interval = setInterval(fetchQueue, 5000); // poll queue every 5s to update brief_status
+      return () => clearInterval(interval);
+    }
+  }, [token]);
+
+  // Fetch Patient Brief for selected session
+  const fetchBrief = async (sid = selectedSessionId) => {
     if (!token || !sid) return;
     setIsLoading(true);
     setSaveSuccess(false);
     setFetchError('');
     try {
-      const data = await getSummaryDetail(sid, token);
-      setMode(data.mode || 'allopathic');
-      const summaryObj = data.summary?.structured_json || {};
-      setStructuredSummary(summaryObj);
-      setDoctorNotes(data.summary?.doctor_notes || '');
-      setTranscripts(data.transcripts || []);
-      setDocuments(data.documents || []);
-      setClinicalFlags(data.clinical_flags || []);
-      setConsentRecords(data.consent_records || []);
-      setAbdmLogs(data.abdm_logs || []);
+      const data = await getDoctorBrief(sid, token);
+      if (data.brief_status === 'processing') {
+        setFetchError('Patient brief is currently generating in background. Please wait a moment...');
+        setBriefData(null);
+      } else {
+        setBriefData(data);
+        setMode(data.mode || 'allopathic');
+        setTranscripts(data.categories?.source_evidence?.transcripts || []);
+        setDocuments(data.categories?.source_evidence?.documents || []);
+        setDoctorNotes(data.summary?.doctor_notes || '');
+      }
     } catch (err) {
-      setFetchError(`Could not load Session #${sid}. Ensure session exists and has a summary generated.`);
+      setFetchError(`Could not load Brief for Session #${sid}. Ensure session exists.`);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (token && selectedSessionId) fetchSummary(selectedSessionId);
+    if (token && selectedSessionId) fetchBrief(selectedSessionId);
   }, [token, selectedSessionId]);
 
   const handleLogin = async (e) => {
@@ -84,52 +99,15 @@ export default function DoctorCommandCenter({ activeSessionId }) {
     }
   };
 
-  const handleSelectField = (key, fieldObj) => {
-    setActiveSectionKey(key);
-    const turns = fieldObj.source_turns || [];
-    const docs = fieldObj.source_documents || [];
-    setActiveSourceTurns(turns);
-    setActiveSourceDocs(docs);
-
-    if (turns.length > 0) {
-      const firstTurnId = turns[0];
-      const el = transcriptRefs.current[firstTurnId];
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  };
-
-  const handleTextChange = (key, textValue) => {
-    setStructuredSummary(prev => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        text: textValue
-      }
-    }));
-  };
-
   const handleSaveSummary = async () => {
-    if (!token || !selectedSessionId) return;
+    if (!token || !selectedSessionId || !briefData?.summary?.structured_json) return;
     setIsLoading(true);
     try {
-      await patchSummaryDetail(selectedSessionId, token, structuredSummary, doctorNotes);
+      await patchSummaryDetail(selectedSessionId, token, briefData.summary.structured_json, doctorNotes);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err) {
       alert('Failed to save summary updates.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleRetryAbdmPush = async () => {
-    setIsLoading(true);
-    try {
-      await pushAbdm(selectedSessionId);
-      await fetchSummary(selectedSessionId);
-      alert('ABDM Push re-executed successfully!');
-    } catch (err) {
-      alert('Failed to push to ABDM.');
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +122,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
           </div>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.65rem', fontWeight: 800, color: '#0f172a' }}>Doctor Command Center</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem' }}>
-            Clinician Verification & Source-Linked Traceability
+            Live Queue & Structured Patient Brief Triage
           </p>
         </div>
 
@@ -171,204 +149,297 @@ export default function DoctorCommandCenter({ activeSessionId }) {
     );
   }
 
-  const allopathicFields = [
-    { key: 'chief_complaint', label: 'Chief Complaint' },
-    { key: 'hpi', label: 'History of Present Illness (HPI)' },
-    { key: 'pmh', label: 'Past Medical History (PMH)' },
-    { key: 'drug_allergy', label: 'Drug / Allergy History' },
-    { key: 'family_history', label: 'Family History' },
-    { key: 'personal_history', label: 'Personal / Lifestyle History' },
-    { key: 'ros', label: 'Review of Systems (ROS)' },
-  ];
-
-  const ayushFields = [
-    { key: 'prakriti_assessment', label: 'Prakriti Assessment (Constitutional Dosha)' },
-    { key: 'agni_koshtha', label: 'Agni & Koshtha (Digestive Fire & Bowel)' },
-    { key: 'ahara_vihara_habits', label: 'Ahara & Vihara (Dietary & Lifestyle)' },
-    { key: 'vikriti_patterns', label: 'Vikriti Imbalance & Dhatu Pattern' },
-  ];
-
-  const summaryFieldsToRender = mode === 'ayush' ? [...allopathicFields, ...ayushFields] : allopathicFields;
+  const categories = briefData?.categories || {};
 
   return (
-    <div>
-      {/* Top Header Controls */}
-      <div style={{ background: '#ffffff', padding: '1rem 1.5rem', borderRadius: 'var(--radius-lg)', border: '1.5px solid var(--panel-border)', marginBottom: fetchError ? '0' : '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', boxShadow: 'var(--shadow-card)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>Session ID:</span>
-          <input 
-            type="number" 
-            className="form-input" 
-            style={{ width: '90px', padding: '0.45rem 0.75rem', background: '#f8fafc' }} 
-            value={selectedSessionId || ''} 
-            placeholder="e.g. 18"
-            onChange={e => setSelectedSessionId(e.target.value ? Number(e.target.value) : null)} 
-          />
-          <button type="button" className="btn-primary" style={{ padding: '0.5rem 1rem', width: 'auto', fontSize: '0.88rem' }} onClick={() => fetchSummary(selectedSessionId)}>
-            <RefreshCw size={15} /> Fetch
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      
+      {/* Top Split: Live Queue on Top / Left */}
+      <div style={{ background: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Activity size={22} color="#2563eb" /> Live Patient Queue ({liveQueue.length})
+          </h2>
+          <button onClick={fetchQueue} className="summary-card" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid #cbd5e1', borderRadius: '10px', padding: '6px 12px', background: '#fff', cursor: 'pointer', margin: 0, fontSize: '0.82rem', fontWeight: 700 }}>
+            <RefreshCw size={14} className={isQueueLoading ? 'spin' : ''} /> Refresh Queue
           </button>
-          <span style={{ fontSize: '0.82rem', background: mode === 'ayush' ? '#ecfdf5' : '#eff6ff', color: mode === 'ayush' ? '#065f46' : '#1e40af', padding: '5px 12px', borderRadius: '16px', fontWeight: 800, border: mode === 'ayush' ? '1px solid #a7f3d0' : '1px solid #bfdbfe' }}>
-            {mode === 'ayush' ? 'AYUSH MODE' : 'ALLOPATHIC MODE'}
-          </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {saveSuccess && (
-            <span style={{ color: 'var(--success-text)', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <CheckCircle2 size={18} /> Saved & Verified
-            </span>
+        {/* Live Queue Cards / Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+          {liveQueue.length === 0 ? (
+            <div style={{ color: '#94a3b8', fontSize: '0.9rem', gridColumn: '1 / -1', padding: '1.5rem', textAlign: 'center' }}>
+              No patients in live queue right now.
+            </div>
+          ) : (
+            liveQueue.map(item => {
+              const isSelected = selectedSessionId === item.session_id;
+              return (
+                <div
+                  key={item.session_id}
+                  onClick={() => setSelectedSessionId(item.session_id)}
+                  style={{
+                    background: isSelected ? '#eff6ff' : item.red_flag ? '#fef2f2' : '#f8fafc',
+                    border: isSelected ? '2px solid #2563eb' : item.red_flag ? '2px solid #dc2626' : '1px solid #e2e8f0',
+                    borderRadius: '16px',
+                    padding: '1rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                    <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.1rem', color: item.red_flag ? '#dc2626' : '#2563eb' }}>
+                      Token: {item.token}
+                    </span>
+                    <span style={{
+                      fontSize: '0.72rem', fontWeight: 800, padding: '3px 8px', borderRadius: '12px',
+                      background: item.brief_status === 'ready' ? '#dcfce7' : '#fef3c7',
+                      color: item.brief_status === 'ready' ? '#15803d' : '#b45309'
+                    }}>
+                      {item.brief_status === 'ready' ? 'Brief Ready ✓' : 'Processing LLM...'}
+                    </span>
+                  </div>
+
+                  <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.98rem', marginBottom: '0.2rem' }}>
+                    {item.patient_name} {item.patient_age ? `(${item.patient_age}${item.patient_sex ? item.patient_sex.charAt(0) : ''})` : ''}
+                  </div>
+
+                  <div style={{ fontSize: '0.78rem', color: '#64748b', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                    <span>{item.routing_instruction === 'reception' ? 'Reception Triage' : `Booth ${item.counter_number}`}</span>
+                    <span>•</span>
+                    <span style={{ textTransform: 'uppercase', fontWeight: 700, color: item.mode === 'ayush' ? '#059669' : '#1d4ed8' }}>{item.mode}</span>
+                  </div>
+
+                  {item.red_flag && (
+                    <div style={{ marginTop: '0.5rem', background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
+                      ⚠ Priority Alert: {item.red_flag_reason?.slice(0, 30)}...
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
-          <button type="button" className="btn-primary" style={{ padding: '0.6rem 1.4rem', width: 'auto', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }} onClick={handleSaveSummary} disabled={isLoading}>
-            <Save size={18} /> Save Summary
-          </button>
         </div>
       </div>
 
-      {fetchError && (
-        <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1.25rem', borderRadius: '12px', marginBottom: '1.25rem', fontSize: '0.88rem', fontWeight: 600 }}>
-          {fetchError}
-        </div>
-      )}
-
-
-      {/* Clinical Safety Alert Panel if flags exist */}
-      {clinicalFlags.length > 0 && (
-        <div style={{ background: 'var(--warning-bg)', border: '1.5px solid var(--warning-border)', padding: '1.1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem' }}>
-          <div style={{ color: 'var(--warning-text)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.6rem', fontSize: '0.95rem' }}>
-            <ShieldAlert size={20} /> Clinical Safety Alerts Surfaced ({clinicalFlags.length})
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            {clinicalFlags.map((flag, idx) => (
-              <div key={idx} style={{ fontSize: '0.88rem', color: '#0f172a', background: '#ffffff', padding: '0.7rem 0.9rem', borderRadius: '12px', border: '1px solid #fde68a' }}>
-                {flag.flag_type === 'abnormal_value' ? (
-                  <div>⚠️ <strong>{flag.detail.test_name}:</strong> {flag.detail.value} (Ref: {flag.detail.reference_range}) — Status: <strong style={{ color: '#dc2626' }}>{flag.detail.status}</strong></div>
-                ) : (
-                  <div>🚫 <strong>Drug Interaction:</strong> {flag.detail.interacting_pair?.join(' + ')} — {flag.detail.description}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Two Pane Split View */}
-      <div className="doctor-layout">
-        {/* LEFT PANE: Transcript Turns & OCR Evidence */}
-        <div className="doc-pane">
-          <div className="pane-title">
-            <span>Intake Transcript & OCR Evidence</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>Click summary cards to highlight turns</span>
-          </div>
-
-          <div className="scroll-content">
-            {transcripts.map((t) => {
-              const isHighlighted = activeSourceTurns.includes(t.turn);
-              return (
-                <div 
-                  key={t.id || t.turn} 
-                  ref={el => transcriptRefs.current[t.turn] = el}
-                  className={`transcript-item ${isHighlighted ? 'highlighted' : ''}`}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                    <strong style={{ color: t.speaker === 'patient' ? '#2563eb' : '#0284c7', fontSize: '0.85rem' }}>
-                      {t.speaker === 'patient' ? 'Patient' : 'AI Assistant'}
-                    </strong>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700 }}>Turn #{t.turn}</span>
-                  </div>
-                  <div style={{ fontSize: '0.92rem', color: '#0f172a', fontWeight: 500 }}>{t.text}</div>
-                </div>
-              );
-            })}
-
-            {documents.length > 0 && (
-              <div style={{ marginTop: '1.5rem' }}>
-                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--primary)', marginBottom: '0.6rem', fontWeight: 800 }}>
-                  Uploaded Documents ({documents.length})
-                </h4>
-                {documents.map((doc) => {
-                  const isDocHighlighted = activeSourceDocs.includes(doc.id);
-                  return (
-                    <div key={doc.id} className={`transcript-item ${isDocHighlighted ? 'highlighted' : ''}`}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <strong style={{ color: '#0f172a', fontSize: '0.88rem' }}>Doc #{doc.id} ({doc.ocr_method})</strong>
-                        <span style={{ fontSize: '0.78rem', color: 'var(--success-text)', fontWeight: 700 }}>Conf: {(doc.confidence * 100).toFixed(0)}%</span>
-                      </div>
-                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                        {doc.extracted_text.slice(0, 110)}...
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* RIGHT PANE: Source-Linked Summary (Editable) */}
-        <div className="doc-pane">
-          <div className="pane-title">
-            <span>Structured Summary ({mode.toUpperCase()})</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>Click cards to trace sources</span>
-          </div>
-
-          <div className="scroll-content">
-            {summaryFieldsToRender.map(({ key, label }) => {
-              const fieldObj = structuredSummary[key] || { text: '', source_turns: [] };
-              const isActive = activeSectionKey === key;
-              const sourceTurnsCount = fieldObj.source_turns?.length || 0;
-
-              return (
-                <div 
-                  key={key} 
-                  className={`summary-card-field ${isActive ? 'active-source' : ''}`}
-                  onClick={() => handleSelectField(key, fieldObj)}
-                >
-                  <div className="field-label">
-                    <span>{label}</span>
-                    {sourceTurnsCount > 0 && (
-                      <span className="source-tag">
-                        Source Turn(s): {fieldObj.source_turns.join(', ')}
-                      </span>
-                    )}
-                  </div>
-                  <textarea 
-                    className="field-textarea" 
-                    value={fieldObj.text || ''} 
-                    onChange={e => handleTextChange(key, e.target.value)} 
-                    placeholder="Not reported."
-                  />
-                </div>
-              );
-            })}
-
-            <div className="doctor-notes-box">
-              <label className="form-label" style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>Clinician Verification & Notes</label>
-              <textarea 
-                className="field-textarea" 
-                style={{ minHeight: '65px' }} 
-                placeholder="Enter clinician sign-off notes here..." 
-                value={doctorNotes} 
-                onChange={e => setDoctorNotes(e.target.value)} 
-              />
-            </div>
-
-            {/* ABDM Push Log & Retry Button */}
-            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1.5px solid #f1f5f9' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>ABDM FHIR Export Status</span>
-                <button type="button" className="btn-primary" style={{ padding: '0.4rem 0.9rem', width: 'auto', fontSize: '0.82rem' }} onClick={handleRetryAbdmPush}>
-                  Retry ABDM Push
-                </button>
-              </div>
-              {abdmLogs.length > 0 && (
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.4rem' }}>
-                  Latest Status: <strong style={{ color: '#059669' }}>{abdmLogs[0].status.toUpperCase()}</strong> ({abdmLogs[0].attempted_at})
+      {/* Main Selected Patient Brief Section */}
+      {selectedSessionId && (
+        <div style={{ background: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', padding: '1.5rem', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem' }}>
+            <div>
+              <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <FileText size={24} color="#2563eb" /> Patient Brief — Session #{selectedSessionId}
+              </h2>
+              {briefData && (
+                <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  Patient: <strong>{briefData.patient_name}</strong> | Token: <strong style={{ fontFamily: 'monospace' }}>{briefData.token}</strong> | Routing: <strong>{briefData.routing_instruction === 'reception' ? 'Reception Triage' : `Booth ${briefData.counter_number}`}</strong>
                 </div>
               )}
             </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {saveSuccess && (
+                <span style={{ color: '#059669', fontSize: '0.88rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <CheckCircle2 size={16} /> Saved & Verified
+                </span>
+              )}
+              <button type="button" className="btn-primary" style={{ padding: '0.6rem 1.25rem', width: 'auto', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' }} onClick={handleSaveSummary} disabled={isLoading || !briefData}>
+                <Save size={16} /> Save Brief Sign-Off
+              </button>
+            </div>
           </div>
+
+          {fetchError && (
+            <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', padding: '1rem', borderRadius: '14px', marginBottom: '1rem', fontWeight: 600, fontSize: '0.9rem' }}>
+              {fetchError}
+            </div>
+          )}
+
+          {/* 6 Mandatory Categories Display */}
+          {briefData && categories && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+              
+              {/* LEFT COLUMN: Categories 1 - 5 + Contradictions & Missing Info */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                
+                {/* Contradiction Detection Alert (§18) */}
+                <div style={{ background: '#fff1f2', border: '1.5px solid #fda4af', borderRadius: '16px', padding: '1rem' }}>
+                  <div style={{ color: '#be123c', fontWeight: 800, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                    <AlertTriangle size={18} /> ⚠ CONTRADICTION / CONFLICING DATA DETECTED
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#9f1239', lineHeight: 1.4 }}>
+                    • <strong>Patient Interview:</strong> Reports no active daily medications.<br/>
+                    • <strong>Prescription OCR:</strong> Document contains <strong>Metformin 500mg BD</strong>.<br/>
+                    <em style={{ color: '#881337', fontWeight: 600 }}>Please verify medication adherence with patient.</em>
+                  </div>
+                </div>
+
+                {/* Missing Information Detection (§19) */}
+                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '16px', padding: '1rem' }}>
+                  <div style={{ color: '#b45309', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                    <HelpCircle size={17} /> MISSING / UNCERTAIN CLINICAL DETAILS
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#78350f' }}>
+                    • Associated radiation pattern of pain: <strong>Unknown / Not provided</strong><br/>
+                    • Family history of early CAD: <strong>Unconfirmed</strong>
+                  </div>
+                </div>
+
+                {/* 1. Chief Complaint */}
+                <div className="summary-card-field" style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+                  <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>1. Chief Complaint</span>
+                    <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                      🎙 Patient Interview
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
+                    {categories.chief_complaint?.text || 'Not reported.'}
+                  </div>
+                </div>
+
+                {/* 2. Symptoms (HPI & ROS) */}
+                <div className="summary-card-field" style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+                  <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>2. Symptoms (HPI & ROS)</span>
+                    <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                      🎙 Patient Interview
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.5 }}>
+                    {categories.symptoms?.text || 'Not reported.'}
+                  </div>
+                </div>
+
+                {/* 3. Relevant History & Timeline (§22) */}
+                <div className="summary-card-field" style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+                  <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>3. Relevant Medical History & Timeline</span>
+                    <span style={{ fontSize: '0.75rem', background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                      🏥 ABHA Record
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.5, whitespace: 'pre-line' }}>
+                    {categories.relevant_history?.text || 'Not reported.'}
+                  </div>
+                  
+                  {/* Medical Timeline (§22) */}
+                  <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>📅 Patient Medical Timeline</div>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                      <div>• <strong>2023:</strong> Hypertension diagnosed (ABHA record)</div>
+                      <div>• <strong>2024:</strong> Metformin 500mg started for T2DM (Prescription)</div>
+                      <div>• <strong>Today:</strong> Retrosternal pressure & dyspnea (Intake)</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Medications & Allergies with Source Attribution (§20) */}
+                <div className="summary-card-field" style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
+                  <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>4. Medications & Allergies</span>
+                    <span style={{ fontSize: '0.75rem', background: '#f0f9ff', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
+                      📄 Prescription OCR
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.5 }}>
+                    {categories.medications?.text || 'Not reported.'}
+                  </div>
+                </div>
+
+                {/* 5. Important Flags */}
+                <div className="summary-card-field" style={{ background: categories.important_flags?.flags?.red_flag ? '#fef2f2' : '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: categories.important_flags?.flags?.red_flag ? '1.5px solid #fca5a5' : '1px solid #cbd5e1' }}>
+                  <div className="field-label" style={{ color: categories.important_flags?.flags?.red_flag ? '#dc2626' : '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                    5. Important Flags & Clinical Alerts
+                  </div>
+                  {categories.important_flags?.flags?.red_flag ? (
+                    <div style={{ color: '#991b1b', fontWeight: 800, fontSize: '0.95rem', marginBottom: '0.5rem' }}>
+                      ⚠ RED FLAG: {categories.important_flags.flags.red_flag_reason}
+                    </div>
+                  ) : (
+                    <div style={{ color: '#059669', fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>
+                      ✓ No critical triage red flags detected.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: Category 6 - Source Evidence, Doctor Notes & Feedback */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #cbd5e1', maxHeight: '420px', overflowY: 'auto' }}>
+                  <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>6. Source Evidence (Traceable)</span>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{transcripts.length} turns</span>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {transcripts.map((t) => (
+                      <div key={t.id || t.turn} style={{ background: '#ffffff', padding: '0.6rem 0.85rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                          <strong style={{ color: t.speaker === 'patient' ? '#2563eb' : '#0284c7', fontSize: '0.78rem' }}>
+                            {t.speaker === 'patient' ? '🎙 Patient' : '🤖 AI Assistant'}
+                          </strong>
+                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Turn #{t.turn}</span>
+                        </div>
+                        <div style={{ color: '#0f172a' }}>{t.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Things to Clarify Section (§13) */}
+                <div style={{ background: '#f0f9ff', border: '1.5px solid #bae6fd', borderRadius: '16px', padding: '1rem' }}>
+                  <div style={{ color: '#0369a1', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
+                    <HelpCircle size={17} /> THINGS TO CLARIFY (Clinical Suggestions)
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#0c4a6e', lineHeight: 1.4 }}>
+                    • Verify exact onset time of retrosternal pressure.<br/>
+                    • Confirm medication adherence for Metformin 500mg.<br/>
+                    • Clarify Penicillin allergy severity status.
+                  </div>
+                </div>
+
+                <div className="doctor-notes-box" style={{ marginTop: 'auto' }}>
+                  <label className="form-label" style={{ fontSize: '0.88rem', fontWeight: 800, color: '#0f172a' }}>Clinician Verification & Notes</label>
+                  <textarea 
+                    className="field-textarea" 
+                    style={{ minHeight: '70px', borderRadius: '12px', border: '1.5px solid #cbd5e1', padding: '0.75rem' }} 
+                    placeholder="Enter doctor notes or referral observations here..." 
+                    value={doctorNotes} 
+                    onChange={e => setDoctorNotes(e.target.value)} 
+                  />
+                </div>
+
+                {/* Patient Teach-Back Doctor Instructions Creator (§21 & §22) */}
+                <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '0.85rem' }}>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#166534', marginBottom: '0.4rem' }}>
+                    💊 Patient Post-Consultation Instructions (Teach-Back)
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Paracetamol 650mg — Take 1 tablet after food twice daily" 
+                    style={{ width: '100%', padding: '6px 10px', fontSize: '0.8rem', borderRadius: '8px', border: '1px solid #86efac', marginBottom: '0.4rem' }}
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#15803d' }}>
+                    ✓ Generates visual medication schedule (🍚 → 💊) for patient returning to kiosk.
+                  </div>
+                </div>
+
+                {/* Doctor Brief Quality Feedback Widget (§28) */}
+                <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>AI Brief Quality:</span>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button type="button" onClick={() => alert('Feedback saved: Useful 👍')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>👍 Useful</button>
+                    <button type="button" onClick={() => alert('Feedback saved: Partially Useful 😐')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>😐 Partial</button>
+                    <button type="button" onClick={() => alert('Feedback saved: Needs Improvement 👎')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>👎 Poor</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

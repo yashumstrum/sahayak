@@ -1,13 +1,48 @@
 from rest_framework import serializers
-from .models import ABDMPushLog, ClinicalFlag, ConsentRecord, Document, Summary, Transcript
+from .models import ABDMPushLog, ClinicalFlag, ConsentRecord, Document, LinkedRecord, Patient, Session, Summary, Transcript
+
+
+class IdentifySerializer(serializers.Serializer):
+    has_abha = serializers.BooleanField(required=False)
+    hasAbha = serializers.BooleanField(required=False)
+    abha_id = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
+    abhaId = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
+    basic_info = serializers.JSONField(required=False, allow_null=True)
+    basicInfo = serializers.JSONField(required=False, allow_null=True)
+    language = serializers.CharField(max_length=10, default="en")
+    mode = serializers.ChoiceField(choices=["allopathic", "ayush"], default="allopathic")
+
+    def validate(self, attrs):
+        if "hasAbha" in attrs and "has_abha" not in attrs:
+            attrs["has_abha"] = attrs["hasAbha"]
+        if "abhaId" in attrs and "abha_id" not in attrs:
+            attrs["abha_id"] = attrs["abhaId"]
+        if "basicInfo" in attrs and "basic_info" not in attrs:
+            attrs["basic_info"] = attrs["basicInfo"]
+        if attrs.get("has_abha") is None:
+            raise serializers.ValidationError({"has_abha": "This field is required."})
+        return attrs
+
+
+class LinkedRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LinkedRecord
+        fields = ("id", "record_type", "title", "details", "date", "created_at")
 
 
 class StartInterviewSerializer(serializers.Serializer):
-    patient_name = serializers.CharField(max_length=255)
+    session_id = serializers.IntegerField(required=False, allow_null=True)
+    patient_name = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True)
     language = serializers.CharField(max_length=10, default="en")
     mode = serializers.ChoiceField(choices=["allopathic", "ayush"], default="allopathic")
     abha_id = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
     abha_number = serializers.CharField(max_length=100, required=False, allow_null=True, allow_blank=True)
+
+
+class AssistedModeSerializer(serializers.Serializer):
+    session_id = serializers.IntegerField(min_value=1)
+    assisted = serializers.BooleanField(default=True)
+
 
 
 class RespondSerializer(serializers.Serializer):

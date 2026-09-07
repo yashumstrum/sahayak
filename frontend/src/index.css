@@ -4,42 +4,42 @@
   --font-primary: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --font-heading: 'Outfit', system-ui, sans-serif;
 
-  /* Figma Healthcare Inspired Palette */
-  --bg-gradient: linear-gradient(135deg, #f0f4ff 0%, #e6eeff 40%, #f5f8ff 100%);
-  --panel-bg: rgba(255, 255, 255, 0.95);
+  /* Enterprise Healthcare Clinical Palette */
+  --bg-gradient: #f8fafc;
+  --panel-bg: #ffffff;
   --panel-border: #e2e8f0;
   --card-bg: #ffffff;
-  --card-hover: #f8fafc;
+  --card-hover: #f1f5f9;
 
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
+  --primary: #1e40af;
+  --primary-hover: #1e3a8a;
   --primary-light: #eff6ff;
   --primary-border: #bfdbfe;
   --accent: #0284c7;
 
   --text-main: #0f172a;
-  --text-muted: #64748b;
+  --text-muted: #475569;
   --text-dim: #94a3b8;
 
   --danger-bg: #fef2f2;
   --danger-border: #fca5a5;
   --danger-text: #991b1b;
 
-  --success-bg: #ecfdf5;
-  --success-border: #6ee7b7;
-  --success-text: #065f46;
+  --success-bg: #f0fdf4;
+  --success-border: #86efac;
+  --success-text: #166534;
 
-  --warning-bg: #fffbe6;
-  --warning-border: #fcd34d;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
   --warning-text: #92400e;
 
-  --radius-sm: 10px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
 
-  --shadow-glow: 0 10px 30px rgba(37, 99, 235, 0.12);
-  --shadow-card: 0 10px 35px -5px rgba(37, 99, 235, 0.08), 0 4px 12px rgba(0, 0, 0, 0.03);
+  --shadow-glow: none;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 * {

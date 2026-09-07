@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import PatientKiosk from './components/PatientKiosk';
 import DoctorCommandCenter from './components/DoctorCommandCenter';
 import HospitalAdminPortal from './components/HospitalAdminPortal';
-import { User, Stethoscope, Building2, ArrowRight, HeartPulse, ShieldCheck, AlertCircle } from 'lucide-react';
+import ReceptionDashboard from './components/ReceptionDashboard';
+import DemoModeDrawer from './components/DemoModeDrawer';
+import { User, Stethoscope, Building2, ArrowRight, HeartPulse, ShieldCheck, AlertCircle, ShieldAlert } from 'lucide-react';
 
 const ALL_LANGS = [
   { code: 'en', label: 'English' },
@@ -140,7 +142,7 @@ export default function App() {
           </div>
         </header>
         <main className="app-container">
-          <PatientKiosk activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} onSessionComplete={() => {}} />
+          <PatientKiosk activeSessionId={activeSessionId} setActiveSessionId={setActiveSessionId} onSessionComplete={() => {}} language={lang} setLanguage={setLang} />
         </main>
       </div>
     );
@@ -234,6 +236,26 @@ export default function App() {
             </button>
           </div>
         </form>
+      </div>
+    );
+  }
+
+  if (view === 'reception') {
+    return (
+      <div>
+        <header className="app-header">
+          <div className="brand-container" style={{ cursor: 'pointer' }} onClick={() => setView('home')}>
+            <div className="brand-logo" style={{ background: '#dc2626' }}><HeartPulse size={24} color="#fff" /></div>
+            <div>
+              <div className="brand-title">Sahayak</div>
+              <div className="brand-subtitle">Reception Triage & Priority Escalation</div>
+            </div>
+          </div>
+          <button onClick={() => setView('home')} style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '6px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>← Home</button>
+        </header>
+        <main className="app-container">
+          <ReceptionDashboard />
+        </main>
       </div>
     );
   }
@@ -333,23 +355,36 @@ export default function App() {
             </button>
           </div>
 
-          {/* Hospital Admin */}
-          <div className="sahayak-card admin">
-            <div className="sahayak-card-icon admin">
-              <Building2 size={32} strokeWidth={1.5} />
+          {/* Reception Desk Portal */}
+          <div className="sahayak-card admin" style={{ borderColor: '#fca5a5' }}>
+            <div className="sahayak-card-icon admin" style={{ background: '#fef2f2', color: '#dc2626' }}>
+              <ShieldAlert size={32} strokeWidth={1.5} />
             </div>
-            <h2 className="sahayak-card-title admin">
-              {s.admin}
+            <h2 className="sahayak-card-title admin" style={{ color: '#991b1b' }}>
+              Reception Triage
             </h2>
             <p className="sahayak-card-desc">
-              {s.adminDesc}
+              Manage red-alert escalations, guide patients, and assign doctor booths.
             </p>
-            <button className="sahayak-card-btn admin" onClick={() => setView('admin')}>
-              {s.adminBtn} <ArrowRight size={18} />
+            <button className="sahayak-card-btn admin" style={{ background: '#dc2626', borderColor: '#dc2626' }} onClick={() => setView('reception')}>
+              Reception Desk <ArrowRight size={18} />
             </button>
           </div>
         </div>
       </main>
+
+      {/* Demo Mode Drawer Controller (§39) */}
+      <DemoModeDrawer 
+        onRunScenario={(scenarioId) => {
+          if (scenarioId === 5) {
+            setView('reception');
+          } else if (scenarioId === 6 || scenarioId === 7) {
+            setView('doctor');
+          } else {
+            setView('kiosk');
+          }
+        }} 
+      />
 
       {/* Footer */}
       <footer className="sahayak-footer">

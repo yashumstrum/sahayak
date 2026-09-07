@@ -235,8 +235,11 @@ export default function HospitalAdminPortal({ onViewDoctorSession }) {
                         <td style={{ padding: '0.75rem 0.5rem', fontWeight: 700, color: '#0f172a' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                             {session.patient_name}
+                            {session.assisted_mode && (
+                              <span style={{ background: '#fef3c7', color: '#b45309', fontSize: '0.68rem', padding: '2px 6px', borderRadius: '8px', fontWeight: 700 }}>Assisted Mode</span>
+                            )}
                             {session.needed_clarification && (
-                              <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '0.68rem', padding: '2px 6px', borderRadius: '8px', fontWeight: 700 }}>Needs Clarification</span>
+                              <span style={{ background: '#eff6ff', color: '#1d4ed8', fontSize: '0.68rem', padding: '2px 6px', borderRadius: '8px', fontWeight: 700 }}>Needs Clarification</span>
                             )}
                           </div>
                         </td>

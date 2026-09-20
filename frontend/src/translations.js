@@ -94,8 +94,8 @@ export const translations = {
     "patient_id_sub": "Do you have an ABHA (Ayushman Bharat Health Account) ID?",
     "yes_abha_title": "YES, I have ABHA ID",
     "yes_abha_sub": "Retrieve linked digital health records automatically",
-    "no_abha_title": "NO ABHA ID",
-    "no_abha_sub": "Register directly with Name, Age, and Sex",
+    "no_abha_title": "AADHAAR CARD",
+    "no_abha_sub": "Scan or enter your Aadhaar details",
     "abha_retrieval_header": "ABHA Record Retrieval",
     "change_choice": "Change choice",
     "enter_abha_label": "Enter ABHA ID or Number",
@@ -103,7 +103,7 @@ export const translations = {
     "use_demo_abha_btn": "Use Demo ABHA",
     "retrieve_proceed_btn": "Retrieve Linked Records & Proceed",
     "retrieving_records": "Retrieving Health Records...",
-    "basic_reg_header": "Basic Patient Registration",
+    "basic_reg_header": "Aadhaar Card Scanner",
     "age_years": "Age (Years) *",
     "sex": "Sex *",
     "female": "Female",
@@ -126,7 +126,7 @@ export const translations = {
     "help_requested": "Help Requested",
     "complete_get_token": "Complete Intake & Get Token Ticket",
     "your_token": "OPD Intake Token Ticket",
-    "priority_reception_badge": "⚠ PRIORITY RED-FLAG ROUTING — GO TO RECEPTION",
+    "priority_reception_badge": "PRIORITY RED-FLAG ROUTING — GO TO RECEPTION",
     "async_brief_note": "Your clinical brief is being prepared for Doctor Booth",
     "intake_complete_title": "Intake Complete!"
   },
@@ -257,7 +257,7 @@ export const translations = {
     "help_requested": "सहायता मांगी गई",
     "complete_get_token": "पंजीकरण पूर्ण करें और टोकन प्राप्त करें",
     "your_token_ticket": "ओपीडी टोकन टिकट",
-    "priority_reception_badge": "⚠ प्राथमिकता — रिसेप्शन पर जाएं",
+    "priority_reception_badge": "प्राथमिकता — रिसेप्शन पर जाएं",
     "async_brief_note": "आपका नैदानिक सारांश डॉक्टर बूथ के लिए तैयार किया जा रहा है",
     "intake_complete_title": "पंजीकरण पूर्ण!"
   },
@@ -388,7 +388,7 @@ export const translations = {
     "help_requested": "मदत मागितली",
     "complete_get_token": "नोंदणी पूर्ण करा आणि टोकन मिळवा",
     "your_token_ticket": "ओपीडी टोकन तिकीट",
-    "priority_reception_badge": "⚠ प्राधान्य — रिसेप्शनकडे जा",
+    "priority_reception_badge": "प्राधान्य — रिसेप्शनकडे जा",
     "async_brief_note": "आपला नैदानिक सारांश डॉक्टर बूथसाठी तयार केला जात आहे",
     "intake_complete_title": "नोंदणी पूर्ण!"
   },
@@ -519,7 +519,7 @@ export const translations = {
     "help_requested": "உதவி கோரப்பட்டது",
     "complete_get_token": "பதிவை முடித்து டோக்கன் பெறவும்",
     "your_token_ticket": "ஓபிடி டோக்கன் டிக்கட்",
-    "priority_reception_badge": "⚠ முன்னுரிமை — வரவேற்பறையில் செல்லவும்",
+    "priority_reception_badge": "முன்னுரிமை — வரவேற்பறையில் செல்லவும்",
     "async_brief_note": "உங்கள் நைடானிக சுருக்கம் டாக்டர் பூத்துக்கு தயாரிக்கப்படுகிறது",
     "intake_complete_title": "பதிவு முடிந்தது!"
   },
@@ -650,7 +650,7 @@ export const translations = {
     "help_requested": "సహాయం అభ్యర్థించారు",
     "complete_get_token": "నమోదు పూర్తి చేసి టోకెన్ పొందండి",
     "your_token_ticket": "OPD టోకెన్ టిక్కెట్",
-    "priority_reception_badge": "⚠ ప్రాధాన్యత — రిసెప్షన్‌కి వెళ్ళండి",
+    "priority_reception_badge": "ప్రాధాన్యత — రిసెప్షన్‌కి వెళ్ళండి",
     "async_brief_note": "మీ నైదానిక సారాంశం డాక్టర్ బూత్‌కి తయారవుతోంది",
     "intake_complete_title": "నమోదు పూర్తయింది!"
   },
@@ -781,7 +781,7 @@ export const translations = {
     "help_requested": "ಸಹಾಯ ಕೇಳಲಾಗಿದೆ",
     "complete_get_token": "ನೋಂದಾಯಣೆ ಪೂರ್ಣಗೊಳಿಸಿ ಟೋಕನ್ ಪಡೆಯಿರಿ",
     "your_token_ticket": "OPD ಟೋಕನ್ ಟಿಕೆಟ್",
-    "priority_reception_badge": "⚠ ಆದ್ಯತೆ — ರಿಸೆಪ್ಷನ್‌ಗೆ ಹೋಗಿ",
+    "priority_reception_badge": "ಆದ್ಯತೆ — ರಿಸೆಪ್ಷನ್‌ಗೆ ಹೋಗಿ",
     "async_brief_note": "ನಿಮ್ಮ ಕ್ಲಿನಿಕಲ್ ಸಾರಾಂಶ ಡಾಕ್ಟರ್ ಬೂತ್‌ಗಾಗಿ ತಯಾರಾಗುತ್ತಿದೆ",
     "intake_complete_title": "ನೋಂದಾಯಣೆ ಪೂರ್ಣ!"
   },
@@ -912,7 +912,7 @@ export const translations = {
     "help_requested": "সাহায্য চাওয়া হয়েছে",
     "complete_get_token": "নিবন্ধন সম্পন্ন করুন ও টোকেন নিন",
     "your_token": "ওপিডি টোকেন টিকিট",
-    "priority_reception_badge": "⚠ অগ্রাধিকার — রিসেপশনে যান",
+    "priority_reception_badge": "অগ্রাধিকার — রিসেপশনে যান",
     "async_brief_note": "আপনার ক্লিনিকাল সারাংশ ডাক্তার বুথের জন্য প্রস্তুত হচ্ছে",
     "intake_complete_title": "নিবন্ধন সম্পন্ন!"
   }

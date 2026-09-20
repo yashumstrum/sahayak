@@ -3,7 +3,6 @@ import PatientKiosk from './components/PatientKiosk';
 import DoctorCommandCenter from './components/DoctorCommandCenter';
 import HospitalAdminPortal from './components/HospitalAdminPortal';
 import ReceptionDashboard from './components/ReceptionDashboard';
-import DemoModeDrawer from './components/DemoModeDrawer';
 import { User, Stethoscope, Building2, ArrowRight, HeartPulse, ShieldCheck, AlertCircle, ShieldAlert } from 'lucide-react';
 
 const ALL_LANGS = [
@@ -111,7 +110,7 @@ export default function App() {
         <div style={{ background: '#0f172a', padding: '10px 2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', color: '#fff' }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', animation: 'pulse 2s infinite' }}></span>
-            🔒 Sahayak Kiosk Mode Active
+            Sahayak Kiosk Mode Active
           </span>
           <button 
             onClick={() => {
@@ -292,7 +291,7 @@ export default function App() {
       <header className="sahayak-header">
         <div className="sahayak-brand">
           <span className="sahayak-brand-main">Sahayak</span>
-          <span className="sahayak-brand-deva">मेडीकियोस्क</span>
+          <span className="sahayak-brand-deva">सहायक</span>
         </div>
       </header>
 
@@ -373,49 +372,17 @@ export default function App() {
         </div>
       </main>
 
-      {/* Demo Mode Drawer Controller (§39) */}
-      <DemoModeDrawer 
-        onRunScenario={(scenarioId) => {
-          if (scenarioId === 5) {
-            setView('reception');
-          } else if (scenarioId === 6 || scenarioId === 7) {
-            setView('doctor');
-          } else {
-            setView('kiosk');
-          }
-        }} 
-      />
-
       {/* Footer */}
       <footer className="sahayak-footer">
-        <div className="sahayak-footer-left">
-          <span>Smart India Hackathon 2026 Demo</span>
-          <span className="sahayak-footer-dot">·</span>
-          <span>Problem Statement #SIH1776</span>
-        </div>
         <div className="sahayak-footer-right">
-          <span className="sahayak-footer-link">About</span>
-          <span className="sahayak-footer-dot">·</span>
-          <span className="sahayak-footer-link">Ministry of Health</span>
+          <a className="sahayak-footer-link" href="https://www.mohfw.gov.in/" target='_blank' rel='noopener noreferrer'>Ministry of Health</a>
           <span className="sahayak-footer-dot">·</span>
           <span className="sahayak-footer-opd">
             <AlertCircle size={13} />
-            OPD Emergency: <strong>{opdCount.current} / {opdCount.total}</strong>
+            OPD Emergency Number: <strong>{opdCount.current} / {opdCount.total}</strong>
           </span>
         </div>
       </footer>
-
-      {/* Accessibility bar */}
-      <div className="sahayak-a11y">
-        <span>{s.langLabel === 'भाषा:' ? 'अक्षर आकार:' : 'Text Size:'}</span>
-        <button className={`sahayak-a11y-btn ${fontSize <= 14 ? 'active' : ''}`} onClick={() => setFontSize(14)}>A-</button>
-        <button className={`sahayak-a11y-btn ${fontSize >= 16 ? 'active' : ''}`} onClick={() => setFontSize(18)}>A+</button>
-        <span style={{ margin: '0 0.5rem' }}>·</span>
-        <span>{s.langLabel === 'भाषा:' ? 'विपरीत:' : 'Contrast:'}</span>
-        <button className={`sahayak-a11y-btn ${highContrast ? 'active' : ''}`} onClick={() => setHighContrast(v => !v)}>
-          {highContrast ? 'Normal' : 'High Contrast'}
-        </button>
-      </div>
     </div>
   );
 }

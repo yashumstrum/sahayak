@@ -118,7 +118,7 @@ export default function ReceptionDashboard({ onSelectDoctorBooth }) {
                 <div key={patient.id} style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                      <span style={{ background: '#dc2626', color: '#fff', fontWeight: 900, fontSize: '0.9rem', padding: '4px 10px', borderRadius: '8px', letterSpacing: '0.5px' }}>
+                      <span style={{ background: '#ec7070ff', color: '#fff', fontWeight: 900, fontSize: '0.9rem', padding: '4px 10px', borderRadius: '8px', letterSpacing: '0.5px' }}>
                         TOKEN: {patient.token || `A-${patient.id}`}
                       </span>
                       <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>

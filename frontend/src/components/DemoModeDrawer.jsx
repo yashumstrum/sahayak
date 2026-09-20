@@ -63,7 +63,7 @@ export default function DemoModeDrawer({ onRunScenario }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #1e293b', paddingBottom: '0.75rem' }}>
             <div>
               <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', tracking: '1px', fontWeight: 800, color: '#38bdf8' }}>
-                🚀 Hackathon Judge Controller
+                Hackathon Judge Controller
               </span>
               <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: '2px 0 0 0' }}>Interactive Demo Scenarios</h3>
             </div>
@@ -71,7 +71,7 @@ export default function DemoModeDrawer({ onRunScenario }) {
               onClick={() => setIsOpen(false)}
               style={{ background: '#334155', border: 'none', color: '#94a3b8', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontWeight: 700 }}
             >
-              ✕
+              X
             </button>
           </div>
 

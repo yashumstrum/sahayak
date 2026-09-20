@@ -1,4 +1,4 @@
-\# Django 5.x is used on current supported Python. The 4.2 LTS marker keeps this
+# Django 5.x is used on current supported Python. The 4.2 LTS marker keeps this
 # project installable in legacy Python 3.9 local environments.
 Django>=5.1,<5.3; python_version >= "3.10"
 Django>=4.2.30,<4.3; python_version < "3.10"

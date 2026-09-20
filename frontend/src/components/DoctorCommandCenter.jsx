@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { loginDoctor, getDoctorLiveQueue, getDoctorBrief, patchSummaryDetail, pushAbdm } from '../api';
 import { 
-  UserCheck, Save, RefreshCw, CheckCircle2, ShieldAlert, Leaf, Activity, FileText, Send, Clock, User, ArrowRight, ShieldCheck, AlertTriangle
+  UserCheck, Save, RefreshCw, CheckCircle2, ShieldAlert, Leaf, Activity, FileText, Send, Clock, User, ArrowRight, ShieldCheck, AlertTriangle, HelpCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 export default function DoctorCommandCenter({ activeSessionId }) {
@@ -24,6 +24,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
   const [doctorNotes, setDoctorNotes] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showSourceEvidence, setShowSourceEvidence] = useState(false);
 
   const [activeSectionKey, setActiveSectionKey] = useState(null);
   const [activeSourceTurns, setActiveSourceTurns] = useState([]);
@@ -196,7 +197,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                       background: item.brief_status === 'ready' ? '#dcfce7' : '#fef3c7',
                       color: item.brief_status === 'ready' ? '#15803d' : '#b45309'
                     }}>
-                      {item.brief_status === 'ready' ? 'Brief Ready ✓' : 'Processing LLM...'}
+                      {item.brief_status === 'ready' ? 'Brief Ready' : 'Processing LLM...'}
                     </span>
                   </div>
 
@@ -212,7 +213,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
 
                   {item.red_flag && (
                     <div style={{ marginTop: '0.5rem', background: '#dc2626', color: 'white', padding: '2px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase' }}>
-                      ⚠ Priority Alert: {item.red_flag_reason?.slice(0, 30)}...
+                      Priority Alert: {item.red_flag_reason?.slice(0, 30)}...
                     </div>
                   )}
                 </div>
@@ -257,40 +258,17 @@ export default function DoctorCommandCenter({ activeSessionId }) {
 
           {/* 6 Mandatory Categories Display */}
           {briefData && categories && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
               
               {/* LEFT COLUMN: Categories 1 - 5 + Contradictions & Missing Info */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 
-                {/* Contradiction Detection Alert (§18) */}
-                <div style={{ background: '#fff1f2', border: '1.5px solid #fda4af', borderRadius: '16px', padding: '1rem' }}>
-                  <div style={{ color: '#be123c', fontWeight: 800, fontSize: '0.92rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.4rem' }}>
-                    <AlertTriangle size={18} /> ⚠ CONTRADICTION / CONFLICING DATA DETECTED
-                  </div>
-                  <div style={{ fontSize: '0.85rem', color: '#9f1239', lineHeight: 1.4 }}>
-                    • <strong>Patient Interview:</strong> Reports no active daily medications.<br/>
-                    • <strong>Prescription OCR:</strong> Document contains <strong>Metformin 500mg BD</strong>.<br/>
-                    <em style={{ color: '#881337', fontWeight: 600 }}>Please verify medication adherence with patient.</em>
-                  </div>
-                </div>
-
-                {/* Missing Information Detection (§19) */}
-                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '16px', padding: '1rem' }}>
-                  <div style={{ color: '#b45309', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
-                    <HelpCircle size={17} /> MISSING / UNCERTAIN CLINICAL DETAILS
-                  </div>
-                  <div style={{ fontSize: '0.82rem', color: '#78350f' }}>
-                    • Associated radiation pattern of pain: <strong>Unknown / Not provided</strong><br/>
-                    • Family history of early CAD: <strong>Unconfirmed</strong>
-                  </div>
-                </div>
-
                 {/* 1. Chief Complaint */}
                 <div className="summary-card-field" style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '16px', border: '1px solid #cbd5e1' }}>
                   <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>1. Chief Complaint</span>
                     <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                      🎙 Patient Interview
+                      Patient Interview
                     </span>
                   </div>
                   <div style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a' }}>
@@ -303,7 +281,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                   <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>2. Symptoms (HPI & ROS)</span>
                     <span style={{ fontSize: '0.75rem', background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                      🎙 Patient Interview
+                      Patient Interview
                     </span>
                   </div>
                   <div style={{ fontSize: '0.95rem', color: '#334155', lineHeight: 1.5 }}>
@@ -316,7 +294,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                   <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>3. Relevant Medical History & Timeline</span>
                     <span style={{ fontSize: '0.75rem', background: '#ecfdf5', color: '#047857', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                      🏥 ABHA Record
+                      ABHA Record
                     </span>
                   </div>
                   <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.5, whitespace: 'pre-line' }}>
@@ -325,7 +303,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                   
                   {/* Medical Timeline (§22) */}
                   <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.8rem', background: '#ffffff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>📅 Patient Medical Timeline</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.4rem' }}>Patient Medical Timeline</div>
                     <div style={{ fontSize: '0.78rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                       <div>• <strong>2023:</strong> Hypertension diagnosed (ABHA record)</div>
                       <div>• <strong>2024:</strong> Metformin 500mg started for T2DM (Prescription)</div>
@@ -339,7 +317,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                   <div className="field-label" style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>4. Medications & Allergies</span>
                     <span style={{ fontSize: '0.75rem', background: '#f0f9ff', color: '#0369a1', padding: '2px 8px', borderRadius: '10px', fontWeight: 700 }}>
-                      📄 Prescription OCR
+                      Prescription OCR
                     </span>
                   </div>
                   <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.5 }}>
@@ -354,37 +332,93 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                   </div>
                   {categories.important_flags?.flags?.red_flag ? (
                     <div style={{ color: '#991b1b', fontWeight: 800, fontSize: '0.95rem', marginBottom: '0.5rem' }}>
-                      ⚠ RED FLAG: {categories.important_flags.flags.red_flag_reason}
+                      RED FLAG: {categories.important_flags.flags.red_flag_reason}
                     </div>
                   ) : (
                     <div style={{ color: '#059669', fontWeight: 700, fontSize: '0.88rem', marginBottom: '0.5rem' }}>
-                      ✓ No critical triage red flags detected.
+                      No critical triage red flags detected.
                     </div>
                   )}
+                </div>
+
+                {/* Contradiction Detection Alert (§18) */}
+                <div style={{ background: '#fff1f2', border: '1.5px solid #fda4af', borderRadius: '16px', padding: '0.85rem 1rem' }}>
+                  <div style={{ color: '#be123c', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem' }}>
+                    <AlertTriangle size={17} /> CONTRADICTION / CONFLICTING DATA DETECTED
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#9f1239', lineHeight: 1.4 }}>
+                    • <strong>Patient Interview:</strong> Reports no active daily medications.<br/>
+                    • <strong>Prescription OCR:</strong> Document contains <strong>Metformin 500mg BD</strong>.<br/>
+                    <em style={{ color: '#881337', fontWeight: 600 }}>Please verify medication adherence with patient.</em>
+                  </div>
+                </div>
+
+                {/* Missing Information Detection (§19) */}
+                <div style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '16px', padding: '0.85rem 1rem' }}>
+                  <div style={{ color: '#b45309', fontWeight: 800, fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                    <HelpCircle size={17} /> MISSING / UNCERTAIN CLINICAL DETAILS
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.4 }}>
+                    • Associated radiation pattern of pain: <strong>Unknown / Not provided</strong><br/>
+                    • Family history of early CAD: <strong>Unconfirmed</strong>
+                  </div>
                 </div>
               </div>
 
               {/* RIGHT COLUMN: Category 6 - Source Evidence, Doctor Notes & Feedback */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #cbd5e1', maxHeight: '420px', overflowY: 'auto' }}>
-                  <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>6. Source Evidence (Traceable)</span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{transcripts.length} turns</span>
-                  </div>
+                <div style={{ background: '#f8fafc', padding: '1rem 1.25rem', borderRadius: '16px', border: '1px solid #cbd5e1', transition: 'all 0.2s ease' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowSourceEvidence(!showSourceEvidence)}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <span style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase' }}>
+                      6. Source Evidence (Traceable)
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', background: '#e2e8f0', padding: '2px 8px', borderRadius: '999px', fontWeight: 600 }}>
+                        {transcripts.length} turns
+                      </span>
+                      {showSourceEvidence ? (
+                        <ChevronUp size={18} style={{ color: '#2563eb' }} />
+                      ) : (
+                        <ChevronDown size={18} style={{ color: '#64748b' }} />
+                      )}
+                    </div>
+                  </button>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                    {transcripts.map((t) => (
-                      <div key={t.id || t.turn} style={{ background: '#ffffff', padding: '0.6rem 0.85rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
-                          <strong style={{ color: t.speaker === 'patient' ? '#2563eb' : '#0284c7', fontSize: '0.78rem' }}>
-                            {t.speaker === 'patient' ? '🎙 Patient' : '🤖 AI Assistant'}
-                          </strong>
-                          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Turn #{t.turn}</span>
+                  {showSourceEvidence && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.85rem', maxHeight: '360px', overflowY: 'auto' }}>
+                      {transcripts.length === 0 ? (
+                        <div style={{ fontSize: '0.82rem', color: '#64748b', textAlign: 'center', padding: '0.75rem' }}>
+                          No transcripts available.
                         </div>
-                        <div style={{ color: '#0f172a' }}>{t.text}</div>
-                      </div>
-                    ))}
-                  </div>
+                      ) : (
+                        transcripts.map((t) => (
+                          <div key={t.id || t.turn} style={{ background: '#ffffff', padding: '0.6rem 0.85rem', borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                              <strong style={{ color: t.speaker === 'patient' ? '#2563eb' : '#0284c7', fontSize: '0.78rem' }}>
+                                {t.speaker === 'patient' ? 'Patient' : 'AI Assistant'}
+                              </strong>
+                              <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Turn #{t.turn}</span>
+                            </div>
+                            <div style={{ color: '#0f172a' }}>{t.text}</div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Things to Clarify Section (§13) */}
@@ -413,7 +447,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                 {/* Patient Teach-Back Doctor Instructions Creator (§21 & §22) */}
                 <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '12px', padding: '0.85rem' }}>
                   <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#166534', marginBottom: '0.4rem' }}>
-                    💊 Patient Post-Consultation Instructions (Teach-Back)
+                    Patient Post-Consultation Instructions (Teach-Back)
                   </div>
                   <input 
                     type="text" 
@@ -421,7 +455,7 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                     style={{ width: '100%', padding: '6px 10px', fontSize: '0.8rem', borderRadius: '8px', border: '1px solid #86efac', marginBottom: '0.4rem' }}
                   />
                   <div style={{ fontSize: '0.72rem', color: '#15803d' }}>
-                    ✓ Generates visual medication schedule (🍚 → 💊) for patient returning to kiosk.
+                    Generates visual medication schedule for patient returning to kiosk.
                   </div>
                 </div>
 
@@ -429,9 +463,9 @@ export default function DoctorCommandCenter({ activeSessionId }) {
                 <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '12px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#334155' }}>AI Brief Quality:</span>
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
-                    <button type="button" onClick={() => alert('Feedback saved: Useful 👍')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>👍 Useful</button>
-                    <button type="button" onClick={() => alert('Feedback saved: Partially Useful 😐')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>😐 Partial</button>
-                    <button type="button" onClick={() => alert('Feedback saved: Needs Improvement 👎')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>👎 Poor</button>
+                    <button type="button" onClick={() => alert('Feedback saved: Useful')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>Useful</button>
+                    <button type="button" onClick={() => alert('Feedback saved: Partially Useful')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>Partial</button>
+                    <button type="button" onClick={() => alert('Feedback saved: Needs Improvement')} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', fontSize: '0.8rem' }}>Poor</button>
                   </div>
                 </div>
               </div>

@@ -3,27 +3,27 @@ import { identifyPatient, startInterview, toggleAssistedMode, respondInterview, 
 import { translations } from '../translations';
 import { 
   Mic, MicOff, Send, AlertTriangle, UploadCloud, CheckCircle2, 
-  Volume2, VolumeX, ShieldCheck, ArrowRight, Activity, Leaf, ShieldAlert, Sparkles, User, HelpCircle, FileText, Check
+  Volume2, VolumeX, ShieldCheck, ArrowRight, Activity, Leaf, ShieldAlert, User, HelpCircle, FileText, Check
 } from 'lucide-react';
 
 export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSessionComplete, language, setLanguage }) {
-  // Locked Patient Flow Steps:
-  // 0: Proximity Wake (Tap "Start")
-  // 1: Language & Care Stream Select
-  // 2: Consent (Single explicit consent confirmation)
-  // 3: ABHA Yes/No Identification Branch
-  // 4: Prescription Yes/No OCR Branch
-  // 5: AI Interview + Assisted Mode
-  // 6: Immediate Token Issuance & Routing
+  // Steps:
+  // 0: Start Screen
+  // 1: Language & Care Stream
+  // 2: Consent
+  // 3: Identification (ABHA / Basic)
+  // 4: Prescription Scan
+  // 5: AI Interview
+  // 6: Token Ticket
   const [step, setStep] = useState(0);
 
-  // language & setLanguage are lifted to App.jsx so the whole UI reacts to the selection
   const t = (key) => translations[language]?.[key] || translations['en']?.[key] || key;
 
   // Intake State
   const [mode, setMode] = useState('allopathic'); // 'allopathic' | 'ayush'
   const [hasAbha, setHasAbha] = useState(null); // boolean | null
   const [abhaIdInput, setAbhaIdInput] = useState('');
+  const [aadhaarInput, setAadhaarInput] = useState('');
   const [patientName, setPatientName] = useState('');
   const [patientAge, setPatientAge] = useState('');
   const [patientSex, setPatientSex] = useState('Female');
@@ -40,74 +40,45 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
   const [chatHistory, setChatHistory] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [chips, setChips] = useState([]);
-  const [selectionMode, setSelectionMode] = useState('single');
-  const [selectedChips, setSelectedChips] = useState([]);
   const [inputAnswer, setInputAnswer] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [assistedModeActive, setAssistedModeActive] = useState(false);
-  const [caregiverModeActive, setCaregiverModeActive] = useState(false);
 
   // Red Flag & Token State
   const [redFlag, setRedFlag] = useState(false);
   const [redFlagReason, setRedFlagReason] = useState('');
-  const [tokenData, setTokenData] = useState(null); // { token, counter_number, routing_instruction, message }
+  const [tokenData, setTokenData] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
   // Speech Recognition & TTS State
   const [isListening, setIsListening] = useState(false);
   const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [speechRate, setSpeechRate] = useState(0.9); // 'normal' | 'slow'
   const recognitionRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // Spoken Assistant Guidance for Screen Transitions (§2 & §7)
+  // Spoken Assistant Guidance for Screen Transitions
   useEffect(() => {
     if (!ttsEnabled) return;
     const prompts = {
       0: {
-        en: "Welcome to Sahayak. I will help you prepare some information before you meet the doctor. Please tap below to begin.",
-        hi: "सहायक में आपका स्वागत है। डॉक्टर से मिलने से पहले मैं आपकी जानकारी तैयार करने में मदद करूँगा। शुरू करने के लिए नीचे टैप करें।",
-        mr: "सहायक मध्ये आपले स्वागत आहे. मी डॉक्टरांना भेटण्यापूर्वी आपली माहिती तयार करण्यात मदत करेन. सुरू करण्यासाठी खाली टॅप करा.",
-        ta: "சஹாயக்கிற்கு நல்வரவு. மருத்துவரை சந்திப்பதற்கு முன் உங்கள் தகவல்களை தயார் செய்ய நான் உதவுவேன்.",
-        te: "సహాయక్‌కు స్వాగతం. వైద్యుడిని కలవడానికి ముందు మీ సమాచారాన్ని సిద్ధం చేయడానికి నేను సహాయం చేస్తాను.",
-        kn: "ಸಹಾಯಕ್‌ಗೆ ସ୍ୱାଗତ. ವೈದ್ಯರನ್ನು ಭೇಟಿಯಾಗುವ ಮೊದಲು ನಿಮ್ಮ ಮಾಹಿತಿಯನ್ನು ಸಿದ್ಧಪಡಿಸಲು ನಾನು ಸಹಾಯ ಮಾಡುತ್ತೇನೆ.",
-        bn: "সহায়কে স্বাগতম। ডাক্তারের সাথে দেখা করার আগে আমি আপনার তথ্য প্রস্তুত করতে সাহায্য করব।"
+        en: "Welcome to Sahayak. Please tap Start Registration to begin.",
+        hi: "सहायक में आपका स्वागत है। शुरू करने के लिए स्टार्ट पर टैप करें।",
       },
       1: {
-        en: "Please select the language you would like to speak in.",
-        hi: "कृपया वह भाषा चुनें जिसमें आप बात करना चाहते हैं।",
-        mr: "कृपया आपण बोलू इच्छित असलेली भाषा निवडा.",
-        ta: "நீங்கள் பேச விரும்பும் மொழியைத் தேர்ந்தெடுக்கவும்.",
-        te: "దయచేసి మీరు మాట్లాడాలనుకుంటున్న భాషను ఎంచుకోండి.",
-        kn: "ದಯವಿಟ್ಟು ನೀವು ಮಾತನಾಡಲು ಬಯಸುವ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ.",
-        bn: "আপনি যে ভাষায় কথা বলতে চান তা নির্বাচন করুন।"
+        en: "Please select your preferred language and care stream.",
+        hi: "कृपया अपनी पसंदीदा भाषा और चिकित्सा पद्धति चुनें।",
       },
       2: {
-        en: "Before we continue, I need your consent to process your health information for the doctor.",
-        hi: "आगे बढ़ने से पहले, मुझे डॉक्टर के लिए आपकी स्वास्थ्य जानकारी का उपयोग करने के लिए आपकी सहमति चाहिए।",
-        mr: "पुढे जाण्यापूर्वी, डॉक्टरांसाठी तुमची आरोग्य माहिती वापरण्यासाठी मला तुमच्या संमतीची गरज आहे.",
-        ta: "நாம் തുടருவதற்கு முன், உங்கள் மருத்துவத் தகவலைப் பயன்படுத்த உங்கள் சம்மதம் தேவை.",
-        te: "మనం కొనసాగే ముందు, మీ ఆరోగ్య సమాచారాన్ని ఉపయోగించడానికి మీ సమ్మతి అవసరం.",
-        kn: "ನಾವು ಮುಂದುವರಿಯುವ ಮೊದಲು, ನಿಮ್ಮ ಆರೋಗ್ಯ ಮಾಹಿತಿಯನ್ನು ಬಳಸಲು ನಿಮ್ಮ ಒಪ್ಪಿಗೆಯ ಅಗತ್ಯವಿದೆ.",
-        bn: "আমরা এগিয়ে যাওয়ার আগে, ডাক্তারের জন্য আপনার স্বাস্থ্য তথ্য ব্যবহার করতে আপনার সম্মতির প্রয়োজন।"
+        en: "Please review and confirm your consent to continue.",
+        hi: "आगे बढ़ने के लिए कृपया अपनी सहमति दें।",
       },
       3: {
-        en: "Do you have an ABHA Health ID? If yes, tap YES to scan or enter. If not, tap NO to continue.",
-        hi: "क्या आपके पास आभा हेल्थ आईडी है? यदि हाँ, तो स्कैन या दर्ज करने के लिए हाँ दबाएँ। यदि नहीं, तो आगे बढ़ने के लिए नहीं दबाएँ।",
-        mr: "तुमच्याकडे आभा हेल्थ आयडी आहे का? असल्यास होय वर टॅप करा, नसल्यास नाही वर टॅप करा.",
-        ta: "உங்களிடம் ஆபா ஐடி உள்ளதா? ஆம் என்றால் ஆம் என்பதைத் தட்டவும், இல்லை என்றால் இல்லை என்பதைத் தட்டவும்.",
-        te: "మీ వద్ద ఆభా ఐడీ ఉందా? ఉంటే అవును అని, లేకపోతే లేదు అని నొక్కండి.",
-        kn: "ನಿಮ್ಮ ಬಳಿ ಆಭಾ ಐಡಿ ಇದೆಯೇ? ಇದ್ದರೆ ಹೌದು ಎಂದು, ಇಲ್ಲದಿದ್ದರೆ ಇಲ್ಲ ಎಂದು ಸ್ಪರ್ಶಿಸಿ.",
-        bn: "আপনার কি আভা আইডি আছে? থাকলে হ্যাঁ এবং না থাকলে না ট্যাপ করুন।"
+        en: "Do you have an ABHA Health ID?",
+        hi: "क्या आपके पास आभा हेल्थ आईडी है?",
       },
       4: {
-        en: "Do you have a previous prescription with you today? Tap YES to scan, or NO to skip to the interview.",
-        hi: "क्या आज आपके पास कोई पुराना पर्चा है? स्कैन करने के लिए हाँ दबाएँ, या साक्षात्कार पर जाने के लिए नहीं दबाएँ।",
-        mr: "तुमच्याकडे जुने प्रिस्क्रिप्शन आहे का? स्कॅन करण्यासाठी होय, किंवा पुढे जाण्यासाठी नाही निवडा.",
-        ta: "இன்று உங்களிடம் பழைய மருந்துச் சீட்டு உள்ளதா? ஸ்கேன் செய்ய ஆம், அல்லது தவிர்க்க இல்லை என்பதைத் தேர்ந்தெடுக்கவும்.",
-        te: "ఈరోజు మీ వద్ద పాత ప్రిస్క్రిప్షన్ ఉందా? స్కాన్ చేయడానికి అవును, లేదా దాటవేయడానికి లేదు నొక్కండి.",
-        kn: "ಇಂದು ನಿಮ್ಮ ಬಳಿ ಹಳೆಯ ಪ್ರಿಸ್ಕ್ರಿಪ್ಷನ್ ಇದೆಯೇ? ಸ್ಕ್ಯಾನ್ ಮಾಡಲು ಹೌದು, ಅಥವಾ ಮುಂದಕ್ಕೆ ಹೋಗಲು ಇಲ್ಲ ಆಯ್ಕೆಮಾಡಿ.",
-        bn: "আজ কি আপনার সাথে কোনো পুরনো ব্যবস্থাপত্র আছে? স্ক্যান করতে হ্যাঁ বা সরাসরি যেতে না বেছে নিন।"
+        en: "Do you have a prescription to scan today?",
+        hi: "क्या आज आपके पास कोई पुराना पर्चा है?",
       }
     };
 
@@ -148,28 +119,16 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
     setTimeout(() => {
       try {
         const utterance = new SpeechSynthesisUtterance(text);
-        window.currentUtterance = utterance;
-        
         const langMapping = {
           en: 'en-US', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', kn: 'kn-IN', bn: 'bn-IN', mr: 'mr-IN',
         };
         utterance.lang = langMapping[language] || 'en-US';
-
-        if (window.speechSynthesis.getVoices) {
-          const voices = window.speechSynthesis.getVoices();
-          const match = voices.find(v => v.lang.replace('_', '-').toLowerCase().startsWith(utterance.lang.toLowerCase()));
-          if (match) utterance.voice = match;
-        }
-        
         utterance.rate = 0.9;
-        utterance.pitch = 1.0;
-        utterance.onend = () => { window.currentUtterance = null; };
-        utterance.onerror = () => { window.currentUtterance = null; };
         window.speechSynthesis.speak(utterance);
       } catch (err) {
-        console.error('TTS execution error:', err);
+        console.error('TTS error:', err);
       }
-    }, 200);
+    }, 150);
   };
 
   // Step 3: ABHA Identification Submission
@@ -188,9 +147,9 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
         payload.basicInfo = { name: patientName.trim() || (abhaIdInput === "MOCK-MEERA-001" ? "Meera Devi" : "ABHA Patient") };
       } else {
         payload.basicInfo = {
-          name: patientName.trim() || "Rajesh Kumar",
-          age: patientAge ? parseInt(patientAge, 10) : 45,
-          sex: patientSex,
+          name: aadhaarInput === "123456789012" ? "Meera Devi" : "Patient",
+          age: aadhaarInput === "123456789012" ? 52 : 45,
+          sex: aadhaarInput === "123456789012" ? "Female" : "Male",
         };
       }
 
@@ -201,13 +160,9 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
       if (res.patient.sex) setPatientSex(res.patient.sex);
       setLinkedRecords(res.linked_records || []);
 
-      if (res.has_abha) {
-        setToastMessage(`ABHA Linked: ${res.patient.name} (${res.linked_records_count} records retrieved)`);
-      } else {
-        setToastMessage(`Patient Registered: ${res.patient.name}`);
-      }
+      setToastMessage(res.has_abha ? `ABHA Linked: ${res.patient.name}` : `Registered: ${res.patient.name}`);
+      setTimeout(() => setToastMessage(null), 3000);
 
-      // Proceed to Step 4 (Prescription Choice)
       setStep(4);
     } catch (err) {
       alert('Failed to register patient. Please check backend connection.');
@@ -216,15 +171,13 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
     }
   };
 
-  // Start AI Interview (called when moving to Step 5)
+  // Start AI Interview
   const handleBeginInterview = async () => {
     setIsLoading(true);
     try {
       const data = await startInterview(patientName, language, mode, null, null, activeSessionId);
       setCurrentQuestion(data.question);
       setChips(data.chips || []);
-      setSelectionMode(data.selection_mode || 'single');
-      setSelectedChips([]);
       setChatHistory([{ turn: 1, speaker: 'ai', text: data.question }]);
       setStep(5);
       speakText(data.question);
@@ -264,15 +217,12 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
       }
 
       if (res.done) {
-        // Interview Completed -> Immediately Generate Token (§0 & §2f)
         await triggerImmediateTokenGeneration();
       } else {
         const aiQuestion = res.question;
         const aiTurnNum = updatedHistory.length + 1;
         setCurrentQuestion(aiQuestion);
         setChips(res.chips || []);
-        setSelectionMode(res.selection_mode || 'single');
-        setSelectedChips([]);
         setChatHistory([
           ...updatedHistory,
           { turn: aiTurnNum, speaker: 'ai', text: aiQuestion }
@@ -286,27 +236,28 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
     }
   };
 
-  // Trigger Assisted Mode (§2d)
+  // Trigger Assisted Mode
   const handleRequestHelp = async () => {
     if (!activeSessionId) return;
     try {
       await toggleAssistedMode(activeSessionId, true);
       setAssistedModeActive(true);
-      setToastMessage('Assisted Mode Activated! Staff notified to help complete interview.');
+      setToastMessage('Staff notified for assistance.');
+      setTimeout(() => setToastMessage(null), 4000);
     } catch (err) {
       console.error(err);
     }
   };
 
-  // Trigger Immediate Token Generation (§2f & §0b)
+  // Trigger Immediate Token Generation
   const triggerImmediateTokenGeneration = async () => {
     setIsLoading(true);
     try {
       const tokRes = await generateToken(activeSessionId);
       setTokenData(tokRes);
-      setStep(6); // Step 6: Token Ticket Display
+      setStep(6);
     } catch (err) {
-      alert('Failed to generate token ticket.');
+      alert('Failed to generate token.');
     } finally {
       setIsLoading(false);
     }
@@ -314,7 +265,7 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
 
   const toggleVoiceInput = () => {
     if (!recognitionRef.current) {
-      alert('Web Speech API is not supported in this browser. Please use Chrome or tap quick replies.');
+      alert('Speech recognition is not available. Please type or tap quick replies.');
       return;
     }
     if (isListening) {
@@ -370,550 +321,412 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
     setToastMessage(null);
   };
 
+  const languagesList = [
+    { code: 'en', label: 'English', sub: 'English' },
+    { code: 'hi', label: 'हिंदी', sub: 'Hindi' },
+    { code: 'mr', label: 'मराठी', sub: 'Marathi' },
+    { code: 'ta', label: 'தமிழ்', sub: 'Tamil' },
+    { code: 'te', label: 'తెలుగు', sub: 'Telugu' },
+    { code: 'kn', label: 'ಕನ್ನಡ', sub: 'Kannada' },
+    { code: 'bn', label: 'বাংলা', sub: 'Bengali' },
+  ];
+
   return (
-    <div className="kiosk-card" style={{ maxWidth: '850px', margin: '0 auto', minHeight: '600px' }}>
+    <div style={{ maxWidth: '780px', margin: '1.5rem auto', background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '2rem', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
       {toastMessage && (
-        <div className="toast-badge">
-          <CheckCircle2 size={20} />
+        <div style={{ background: '#f0fdf4', border: '1px solid #86efac', color: '#166534', padding: '0.65rem 1rem', borderRadius: '10px', marginBottom: '1.25rem', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <CheckCircle2 size={18} />
           <span>{toastMessage}</span>
         </div>
       )}
 
       {redFlag && step === 5 && (
-        <div className="red-flag-banner">
-          <div className="red-flag-icon">!</div>
-          <div>
-            <div className="red-flag-title">{t('emergency_alert')}</div>
-            <div className="red-flag-desc">{redFlagReason || 'Emergency symptom detected. Priority reception routing activated.'}</div>
-          </div>
+        <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', color: '#991b1b', padding: '0.85rem 1rem', borderRadius: '12px', marginBottom: '1.25rem' }}>
+          <strong style={{ display: 'block', fontSize: '0.92rem' }}>Priority Attention Required</strong>
+          <span style={{ fontSize: '0.84rem' }}>{redFlagReason || 'Emergency symptom detected. Staff notified for direct assistance.'}</span>
         </div>
       )}
 
-      {/* Locked Flow Progress Bar */}
+      {/* Clean Minimal Step Indicator */}
       {step > 0 && step < 6 && (
-        <div className="step-indicator" style={{ marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '1rem', gap: '0.5rem', overflowX: 'auto' }}>
           {[
-            { num: 1, key: 'step1_pill', label: 'Language & Stream' },
-            { num: 2, key: 'step2_pill', label: 'Consent' },
-            { num: 3, key: 'step3_pill', label: 'ABHA ID' },
-            { num: 4, key: 'step4_pill', label: 'Document Scan' },
-            { num: 5, key: 'step5_pill', label: 'AI Interview' },
+            { num: 1, label: 'Language' },
+            { num: 2, label: 'Consent' },
+            { num: 3, label: 'Identity' },
+            { num: 4, label: 'Documents' },
+            { num: 5, label: 'Interview' },
           ].map((sItem) => {
             const isActive = step === sItem.num;
             const isCompleted = step > sItem.num;
             return (
               <div 
                 key={sItem.num} 
-                className={`step-pill ${isActive ? 'active' : isCompleted ? 'completed' : ''}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  fontSize: '0.82rem',
+                  fontWeight: isActive ? 800 : 600,
+                  color: isActive ? '#2563eb' : isCompleted ? '#059669' : '#94a3b8'
+                }}
               >
-                <span className="step-number">{isCompleted ? '✓' : sItem.num}</span>
-                <span style={{ fontSize: '0.85rem', fontWeight: isActive ? 800 : 600 }}>{sItem.label}</span>
+                <span style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  background: isActive ? '#2563eb' : isCompleted ? '#ecfdf5' : '#f1f5f9',
+                  color: isActive ? '#ffffff' : isCompleted ? '#059669' : '#64748b'
+                }}>
+                  {isCompleted ? <Check size={13} /> : sItem.num}
+                </span>
+                <span>{sItem.label}</span>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* STEP 0: Proximity Sensor Wake Screen (Tap to Start) */}
+      {/* STEP 0: Start Screen */}
       {step === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem 1.5rem', animation: 'fadeIn 0.4s ease' }}>
-          <div style={{
-            width: '100px', height: '100px', borderRadius: '30px',
-            background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 1.5rem auto', boxShadow: '0 12px 30px rgba(37, 99, 235, 0.35)',
-            animation: 'pulse 2.5s infinite'
-          }}>
-            <Sparkles size={52} />
+        <div style={{ textAlign: 'center', padding: '2.5rem 1rem' }}>
+          <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem auto', border: '1px solid #bfdbfe' }}>
+            <Activity size={28} />
           </div>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: '2.4rem', fontWeight: 900, color: '#0f172a', marginBottom: '0.5rem' }}>
-            {t('medikiosk_intake')}
+          <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
+            Sahayak OPD Intake
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto 2.5rem auto' }}>
-            {t('wake_sub')}
+          <p style={{ color: '#64748b', fontSize: '0.95rem', maxWidth: '440px', margin: '0 auto 2rem auto', lineHeight: 1.5 }}>
+            Prepare your symptoms, medical history, and old prescriptions before meeting the doctor.
           </p>
           <button
+            type="button"
             onClick={() => setStep(1)}
-            className="action-btn"
             style={{
-              padding: '1.2rem 3rem', fontSize: '1.3rem', fontWeight: 800, borderRadius: '20px',
-              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-              boxShadow: '0 8px 25px rgba(37, 99, 235, 0.3)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.75rem'
+              padding: '0.85rem 2rem',
+              fontSize: '1.05rem',
+              fontWeight: 700,
+              borderRadius: '12px',
+              background: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem'
             }}
           >
-            <span>{t('start_intake_btn')}</span>
-            <ArrowRight size={24} />
+            <span>Start Registration</span>
+            <ArrowRight size={18} />
           </button>
         </div>
       )}
 
-      {/* STEP 1: Welcome + Language + Care Stream Selection */}
+      {/* STEP 1: Language & Care Stream */}
       {step === 1 && (
-        <div style={{ animation: 'fadeIn 0.3s ease' }}>
-          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.8rem', fontWeight: 800, color: '#0f172a' }}>
-              {t('lang_care_title')}
+        <div>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+              Select Language & Care Stream
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-              {t('lang_care_sub')}
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+              Choose the language you prefer and the medical consultation system.
             </p>
           </div>
 
-          <div className="form-group" style={{ marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <label className="form-label" style={{ fontWeight: 800, margin: 0 }}>{t('preferred_language')}</label>
-              <button
-                type="button"
-                onClick={() => {
-                  const newRate = speechRate === 0.9 ? 0.7 : 0.9;
-                  setSpeechRate(newRate);
-                  setToastMessage(newRate === 0.7 ? 'Speech speed set to Slower (🐢)' : 'Speech speed set to Normal');
-                }}
-                style={{
-                  background: speechRate === 0.7 ? '#fef3c7' : '#f1f5f9',
-                  border: speechRate === 0.7 ? '1.5px solid #d97706' : '1px solid #cbd5e1',
-                  color: speechRate === 0.7 ? '#92400e' : '#334155',
-                  borderRadius: '12px',
-                  padding: '4px 10px',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem'
-                }}
-              >
-                {speechRate === 0.7 ? '🐢 Slower Speech' : '⚡ Normal Speed'}
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.85rem' }}>
-              {[
-                { code: 'en', label: 'English', sub: 'English', preview: 'Welcome to Sahayak. You have selected English.' },
-                { code: 'hi', label: 'हिंदी', sub: 'Hindi', preview: 'सहायक में आपका स्वागत है। आपने हिंदी चुनी है।' },
-                { code: 'mr', label: 'मराठी', sub: 'Marathi', preview: 'सहायक मध्ये आपले स्वागत आहे. आपण मराठी भाषा निवडली आहे.' },
-                { code: 'ta', label: 'தமிழ்', sub: 'Tamil', preview: 'சஹாயக்கிற்கு நல்வரவு. நீங்கள் தமிழ் மொழியைத் தேர்ந்தெடுத்துள்ளீர்கள்.' },
-                { code: 'te', label: 'తెలుగు', sub: 'Telugu', preview: 'సహాయక్‌కు స్వాగతం. మీరు తెలుగు భాషను ఎంచుకున్నారు.' },
-                { code: 'kn', label: 'ಕನ್ನಡ', sub: 'Kannada', preview: 'ಸಹಾಯಕ್‌ಗೆ స్వాಗതം. ನೀವು ಕನ್ನಡ ಭಾಷೆಯನ್ನು ಆಯ್ಕೆ ಮಾಡಿದ್ದೀರಿ.' },
-                { code: 'bn', label: 'বাংলা', sub: 'Bengali', preview: 'সহায়কে স্বাগতম। আপনি বাংলা ভাষা নির্বাচন করেছেন।' },
-              ].map((item) => {
+          {/* Language Selection Grid */}
+          <div style={{ marginBottom: '1.75rem' }}>
+            <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: '0.6rem' }}>
+              Preferred Language
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.65rem' }}>
+              {languagesList.map((item) => {
                 const isSelected = language === item.code;
                 return (
-                  <div
+                  <button
                     key={item.code}
+                    type="button"
                     onClick={() => setLanguage(item.code)}
                     style={{
                       background: isSelected ? '#eff6ff' : '#f8fafc',
-                      border: isSelected ? '2px solid #1e40af' : '1.5px solid #cbd5e1',
-                      borderRadius: '14px',
-                      padding: '0.85rem 0.6rem',
+                      border: isSelected ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '0.75rem 0.5rem',
                       textAlign: 'center',
                       cursor: 'pointer',
-                      transition: 'all 0.2s ease',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.25rem',
-                      position: 'relative'
+                      gap: '0.15rem'
                     }}
                   >
-                    <button
-                      type="button"
-                      title="Listen audio preview"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if ('speechSynthesis' in window) {
-                          window.speechSynthesis.cancel();
-                          const utt = new SpeechSynthesisUtterance(item.preview);
-                          const langMap = { en: 'en-US', hi: 'hi-IN', mr: 'mr-IN', ta: 'ta-IN', te: 'te-IN', kn: 'kn-IN', bn: 'bn-IN' };
-                          utt.lang = langMap[item.code] || 'en-US';
-                          utt.rate = speechRate;
-                          window.speechSynthesis.speak(utt);
-                        }
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '6px',
-                        right: '6px',
-                        background: isSelected ? '#dbeafe' : '#e2e8f0',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '24px',
-                        height: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                        color: isSelected ? '#1e40af' : '#475569'
-                      }}
-                    >
-                      <Volume2 size={13} />
-                    </button>
-                    <span style={{ fontSize: '1.05rem', fontWeight: 800, color: isSelected ? '#1e40af' : '#0f172a' }}>
-                      🔊 {item.label}
+                    <span style={{ fontSize: '0.98rem', fontWeight: 800, color: isSelected ? '#1e40af' : '#0f172a' }}>
+                      {item.label}
                     </span>
-                    <span style={{ fontSize: '0.75rem', color: isSelected ? '#1e40af' : '#64748b', fontWeight: 600 }}>
+                    <span style={{ fontSize: '0.72rem', color: isSelected ? '#3b82f6' : '#64748b' }}>
                       {item.sub}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          <div className="form-group" style={{ marginBottom: '2rem' }}>
-            <label className="form-label">{t('select_care_model')}</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginTop: '0.6rem' }}>
+          {/* Care Stream Selection */}
+          <div style={{ marginBottom: '2rem' }}>
+            <label style={{ display: 'block', fontSize: '0.84rem', fontWeight: 700, color: '#334155', marginBottom: '0.6rem' }}>
+              Medical System
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div 
-                className={`summary-card-field ${mode === 'allopathic' ? 'active-source' : ''}`}
                 onClick={() => setMode('allopathic')}
-                style={{ padding: '1.25rem', cursor: 'pointer', textAlign: 'center', borderRadius: '20px', background: mode === 'allopathic' ? '#eff6ff' : '#f8fafc', borderColor: mode === 'allopathic' ? '#2563eb' : '#e2e8f0' }}
+                style={{
+                  padding: '1rem',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  border: mode === 'allopathic' ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                  background: mode === 'allopathic' ? '#eff6ff' : '#f8fafc'
+                }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.6rem auto' }}>
-                  <Activity size={24} />
-                </div>
-                <strong style={{ color: '#0f172a', display: 'block', fontSize: '1.05rem', fontWeight: 800 }}>{t('mode_allopathic')}</strong>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{t('allopathic_desc')}</span>
+                <strong style={{ display: 'block', fontSize: '0.98rem', color: '#0f172a', marginBottom: '0.2rem' }}>Allopathic Care</strong>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Modern medicine & general physician consultation</span>
               </div>
 
               <div 
-                className={`summary-card-field ${mode === 'ayush' ? 'active-source' : ''}`}
                 onClick={() => setMode('ayush')}
-                style={{ padding: '1.25rem', cursor: 'pointer', textAlign: 'center', borderRadius: '20px', background: mode === 'ayush' ? '#ecfdf5' : '#f8fafc', borderColor: mode === 'ayush' ? '#10b981' : '#e2e8f0' }}
+                style={{
+                  padding: '1rem',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  border: mode === 'ayush' ? '2px solid #059669' : '1px solid #e2e8f0',
+                  background: mode === 'ayush' ? '#ecfdf5' : '#f8fafc'
+                }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.6rem auto' }}>
-                  <Leaf size={24} />
-                </div>
-                <strong style={{ color: '#0f172a', display: 'block', fontSize: '1.05rem', fontWeight: 800 }}>{t('mode_ayush')}</strong>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{t('ayush_desc')}</span>
+                <strong style={{ display: 'block', fontSize: '0.98rem', color: '#0f172a', marginBottom: '0.2rem' }}>AYUSH Care</strong>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Ayurveda, Yoga, Unani, Siddha & Homeopathy</span>
               </div>
             </div>
-          </div>
-
-          {/* Caregiver Mode Toggle (§23) */}
-          <div style={{ background: caregiverModeActive ? '#eff6ff' : '#f8fafc', border: caregiverModeActive ? '1.5px solid #3b82f6' : '1px solid #cbd5e1', borderRadius: '16px', padding: '1rem', marginBottom: '2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <User size={20} color={caregiverModeActive ? '#1d4ed8' : '#2563eb'} />
-              <div>
-                <strong style={{ fontSize: '0.92rem', color: '#0f172a', display: 'block' }}>Caregiver / Family Mode</strong>
-                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
-                  {caregiverModeActive ? 'Active — Helper logged in encounter audit trail' : 'Someone is helping me complete intake today'}
-                </span>
-              </div>
-            </div>
-            {caregiverModeActive ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setCaregiverModeActive(false);
-                  setToastMessage('Caregiver Mode Removed');
-                }}
-                style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: '10px', padding: '6px 14px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Disable / Remove Caregiver
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setCaregiverModeActive(true);
-                  setToastMessage('Caregiver Mode Enabled — Helper logged in encounter audit trail.');
-                }}
-                style={{ background: '#eff6ff', border: '1px solid #93c5fd', color: '#1d4ed8', borderRadius: '10px', padding: '6px 14px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Enable Caregiver Helper
-              </button>
-            )}
           </div>
 
           <button 
             type="button" 
-            className="btn-primary" 
             onClick={() => setStep(2)}
-            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem', background: mode === 'ayush' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : undefined }}
+            style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: '12px', background: '#2563eb', color: '#ffffff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
           >
-            {t('continue_consent_btn')} <ArrowRight size={20} />
+            <span>Continue to Consent</span>
+            <ArrowRight size={18} />
           </button>
         </div>
       )}
 
-      {/* STEP 2: Single Explicit Consent Confirmation */}
+      {/* STEP 2: Consent */}
       {step === 2 && (
-        <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '650px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-            <div style={{ width: '60px', height: '60px', borderRadius: '20px', background: '#ecfdf5', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-              <ShieldCheck size={32} />
-            </div>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
-              {t('consent_confirm_title')}
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+              Patient Consent
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: '0.2rem' }}>
-              {t('consent_confirm_sub')}
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+              Your data is processed securely under the Digital Personal Data Protection guidelines.
             </p>
           </div>
 
-          <div style={{ background: '#f8fafc', border: '1.5px solid #cbd5e1', borderRadius: '20px', padding: '1.75rem', marginBottom: '1.75rem', lineHeight: 1.6 }}>
-            <strong style={{ color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem', marginBottom: '0.75rem' }}>
-              <ShieldCheck size={20} color="#10b981" /> {t('dpdp_title')}
-            </strong>
-            <p style={{ color: '#334155', fontSize: '0.96rem', margin: 0 }}>
-              "{t('dpdp_text_full')}"
-            </p>
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '1.25rem', marginBottom: '1.75rem', lineHeight: 1.6, fontSize: '0.9rem', color: '#334155' }}>
+            {t('dpdp_text_full')}
           </div>
 
-          <div style={{ display: 'flex', gap: '1rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button 
               type="button" 
-              className="summary-card" 
               onClick={() => setStep(1)} 
-              style={{ flex: 1, padding: '1rem', fontSize: '1rem', fontWeight: 700, border: '1px solid #cbd5e1', borderRadius: '16px', background: '#fff', cursor: 'pointer', textAlign: 'center' }}
+              style={{ flex: 1, padding: '0.8rem', fontSize: '0.95rem', fontWeight: 600, border: '1px solid #cbd5e1', borderRadius: '10px', background: '#fff', color: '#475569', cursor: 'pointer' }}
             >
-              {t('back')}
+              Back
             </button>
             <button 
               type="button" 
-              className="btn-primary" 
               onClick={() => setStep(3)}
-              style={{ flex: 2, padding: '1rem', fontSize: '1.05rem', background: '#10b981', border: 'none' }}
+              style={{ flex: 2, padding: '0.8rem', fontSize: '0.95rem', fontWeight: 700, borderRadius: '10px', background: '#059669', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
             >
-              {t('i_consent_btn')} <ArrowRight size={20} />
+              <span>I Consent & Continue</span>
+              <ArrowRight size={16} />
             </button>
           </div>
         </div>
       )}
 
-      {/* STEP 3: Identification — ABHA Yes/No Branch */}
+      {/* STEP 3: Identification */}
       {step === 3 && (
-        <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '680px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
-              {t('patient_id_title')}
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+              Patient Identification
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: '0.2rem' }}>
-              {t('patient_id_sub')}
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+              Link your existing health records or proceed with basic registration.
             </p>
           </div>
 
           {hasAbha === null && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-              <button
-                type="button"
-                className="summary-card"
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div
                 onClick={() => setHasAbha(true)}
-                style={{ padding: '2rem 1.5rem', borderRadius: '20px', border: '2px solid #2563eb', background: '#eff6ff', cursor: 'pointer', textAlign: 'center' }}
+                style={{ padding: '1.5rem 1rem', borderRadius: '14px', border: '2px solid #2563eb', background: '#eff6ff', cursor: 'pointer', textAlign: 'center' }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-                  <ShieldCheck size={28} />
-                </div>
-                <strong style={{ fontSize: '1.15rem', color: '#0f172a', display: 'block', marginBottom: '0.25rem' }}>{t('yes_abha_title')}</strong>
-                <span style={{ fontSize: '0.82rem', color: '#475569' }}>{t('yes_abha_sub')}</span>
-              </button>
+                <ShieldCheck size={26} color="#2563eb" style={{ margin: '0 auto 0.5rem auto' }} />
+                <strong style={{ fontSize: '1rem', color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>Yes, I have ABHA</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Fetch linked medical history</span>
+              </div>
 
-              <button
-                type="button"
-                className="summary-card"
+              <div
                 onClick={() => setHasAbha(false)}
-                style={{ padding: '2rem 1.5rem', borderRadius: '20px', border: '2px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', textAlign: 'center' }}
+                style={{ padding: '1.5rem 1rem', borderRadius: '14px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', textAlign: 'center' }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#64748b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-                  <User size={28} />
-                </div>
-                <strong style={{ fontSize: '1.15rem', color: '#0f172a', display: 'block', marginBottom: '0.25rem' }}>{t('no_abha_title')}</strong>
-                <span style={{ fontSize: '0.82rem', color: '#475569' }}>{t('no_abha_sub')}</span>
-              </button>
+                <User size={26} color="#64748b" style={{ margin: '0 auto 0.5rem auto' }} />
+                <strong style={{ fontSize: '1rem', color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>No ABHA ID</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Register with Aadhaar / Name</span>
+              </div>
             </div>
           )}
 
-          {/* ABHA YES Path */}
+          {/* ABHA YES Form */}
           {hasAbha === true && (
-            <form onSubmit={handleIdentificationSubmit} style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', borderRadius: '20px', padding: '1.75rem', marginBottom: '1.5rem' }}>
+            <form onSubmit={handleIdentificationSubmit} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '1.5rem', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <strong style={{ color: '#1e40af', fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <ShieldCheck size={20} /> {t('abha_retrieval_header')}
-                </strong>
-                <button type="button" onClick={() => setHasAbha(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>{t('change_choice')}</button>
+                <strong style={{ color: '#1e40af', fontSize: '0.95rem' }}>ABHA Number or ID</strong>
+                <button type="button" onClick={() => setHasAbha(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Change choice</button>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">{t('enter_abha_label')}</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. MOCK-MEERA-001 or 91-1234-5678-9012" 
-                  value={abhaIdInput} 
-                  onChange={e => setAbhaIdInput(e.target.value)} 
-                />
-              </div>
+              <input 
+                type="text" 
+                placeholder="e.g. 91-1234-5678-9012" 
+                value={abhaIdInput} 
+                onChange={e => setAbhaIdInput(e.target.value)} 
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', marginBottom: '1rem' }}
+              />
 
-              {/* Quick Demo Selector */}
-              <div style={{ background: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', border: '1px solid #93c5fd', marginBottom: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '0.84rem', color: '#1e3a8a', fontWeight: 600 }}>{t('demo_profile_text')}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Testing demo profile?</span>
                 <button 
                   type="button" 
                   onClick={() => { setAbhaIdInput('MOCK-MEERA-001'); setPatientName('Meera Devi'); }}
-                  style={{ background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', padding: '4px 10px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
+                  style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '4px 10px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  {t('use_demo_abha_btn')}
+                  Use Demo ABHA
                 </button>
               </div>
 
-              <button type="submit" className="btn-primary" disabled={isLoading} style={{ width: '100%' }}>
-                {isLoading ? t('retrieving_records') : t('retrieve_proceed_btn')}
-                <ArrowRight size={18} />
+              <button type="submit" disabled={isLoading} style={{ width: '100%', padding: '0.8rem', fontSize: '0.95rem', fontWeight: 700, borderRadius: '10px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                {isLoading ? 'Retrieving Records...' : 'Retrieve Records & Continue'}
               </button>
             </form>
           )}
 
-          {/* ABHA NO Path */}
+          {/* ABHA NO Form */}
           {hasAbha === false && (
-            <form onSubmit={handleIdentificationSubmit} style={{ background: '#ffffff', border: '1.5px solid #e2e8f0', borderRadius: '20px', padding: '1.75rem', marginBottom: '1.5rem' }}>
+            <form onSubmit={handleIdentificationSubmit} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px', padding: '1.5rem', marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <strong style={{ color: '#0f172a', fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <User size={20} /> {t('basic_reg_header')}
-                </strong>
-                <button type="button" onClick={() => setHasAbha(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>{t('change_choice')}</button>
+                <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>Aadhaar or Mobile Number</strong>
+                <button type="button" onClick={() => setHasAbha(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Change choice</button>
               </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label className="form-label">{t('patient_full_name')}</label>
-                <input 
-                  type="text" 
-                  className="form-input" 
-                  placeholder="e.g. Rajesh Kumar" 
-                  value={patientName} 
-                  onChange={e => setPatientName(e.target.value)} 
-                  required 
-                />
+              <input 
+                type="text" 
+                placeholder="e.g. 1234 5678 9012" 
+                value={aadhaarInput} 
+                onChange={e => setAadhaarInput(e.target.value)} 
+                required 
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '0.95rem', marginBottom: '1rem' }}
+              />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Testing demo?</span>
+                <button 
+                  type="button" 
+                  onClick={() => { setAadhaarInput('123456789012'); }}
+                  style={{ background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '4px 10px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Use Demo Aadhaar
+                </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
-                <div className="form-group">
-                  <label className="form-label">{t('age_years')}</label>
-                  <input 
-                    type="number" 
-                    className="form-input" 
-                    placeholder="e.g. 45" 
-                    value={patientAge} 
-                    onChange={e => setPatientAge(e.target.value)} 
-                    required 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">{t('sex')}</label>
-                  <select className="form-select" value={patientSex} onChange={e => setPatientSex(e.target.value)}>
-                    <option value="Female">{t('female')}</option>
-                    <option value="Male">{t('male')}</option>
-                    <option value="Other">{t('other')}</option>
-                  </select>
-                </div>
-              </div>
-
-              <button type="submit" className="btn-primary" disabled={!patientName.trim() || isLoading} style={{ width: '100%' }}>
-                {isLoading ? t('registering_patient') : t('complete_reg_btn')}
-                <ArrowRight size={18} />
+              <button type="submit" disabled={!aadhaarInput.trim() || isLoading} style={{ width: '100%', padding: '0.8rem', fontSize: '0.95rem', fontWeight: 700, borderRadius: '10px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}>
+                {isLoading ? 'Saving...' : 'Register & Continue'}
               </button>
             </form>
           )}
         </div>
       )}
 
-      {/* STEP 4: Prescription Scan Yes/No Branch */}
+      {/* STEP 4: Prescription Scan */}
       {step === 4 && (
-        <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: '700px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-            <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
-              {t('doc_scan_title')}
+            <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+              Previous Prescriptions
             </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', marginTop: '0.2rem' }}>
-              {t('doc_scan_sub')}
+            <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: '0.2rem' }}>
+              Do you have a paper prescription or lab report with you today?
             </p>
           </div>
 
           {hasPrescription === null && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-              <button
-                type="button"
-                className="summary-card"
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div
                 onClick={() => setHasPrescription(true)}
-                style={{ padding: '2rem 1.5rem', borderRadius: '20px', border: '2px solid #2563eb', background: '#eff6ff', cursor: 'pointer', textAlign: 'center' }}
+                style={{ padding: '1.5rem 1rem', borderRadius: '14px', border: '2px solid #2563eb', background: '#eff6ff', cursor: 'pointer', textAlign: 'center' }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#2563eb', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-                  <UploadCloud size={28} />
-                </div>
-                <strong style={{ fontSize: '1.15rem', color: '#0f172a', display: 'block', marginBottom: '0.25rem' }}>{t('yes_scan_title')}</strong>
-                <span style={{ fontSize: '0.82rem', color: '#475569' }}>{t('yes_scan_sub')}</span>
-              </button>
+                <UploadCloud size={26} color="#2563eb" style={{ margin: '0 auto 0.5rem auto' }} />
+                <strong style={{ fontSize: '1rem', color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>Yes, Scan Document</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Extract medicines & lab values</span>
+              </div>
 
-              <button
-                type="button"
-                className="summary-card"
+              <div
                 onClick={() => { setHasPrescription(false); handleBeginInterview(); }}
-                style={{ padding: '2rem 1.5rem', borderRadius: '20px', border: '2px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', textAlign: 'center' }}
+                style={{ padding: '1.5rem 1rem', borderRadius: '14px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', textAlign: 'center' }}
               >
-                <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 0.75rem auto' }}>
-                  <ArrowRight size={28} />
-                </div>
-                <strong style={{ fontSize: '1.15rem', color: '#0f172a', display: 'block', marginBottom: '0.25rem' }}>{t('no_scan_title')}</strong>
-                <span style={{ fontSize: '0.82rem', color: '#475569' }}>{t('no_scan_sub')}</span>
-              </button>
+                <ArrowRight size={26} color="#059669" style={{ margin: '0 auto 0.5rem auto' }} />
+                <strong style={{ fontSize: '1rem', color: '#0f172a', display: 'block', marginBottom: '0.2rem' }}>No Documents</strong>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>Proceed directly to interview</span>
+              </div>
             </div>
           )}
 
           {hasPrescription === true && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 600 }}>{t('scan_images_sub')}</span>
-                <button type="button" onClick={() => setHasPrescription(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>{t('change_choice')}</button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>Upload Prescription Image</span>
+                <button type="button" onClick={() => setHasPrescription(null)} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>Change choice</button>
               </div>
 
-              <label className="upload-dropzone">
+              <label style={{ display: 'block', border: '2px dashed #cbd5e1', borderRadius: '14px', padding: '2rem 1rem', textAlign: 'center', cursor: 'pointer', background: '#f8fafc', marginBottom: '1.25rem' }}>
                 <input type="file" accept="image/*" onChange={handleFileUpload} style={{ display: 'none' }} />
-                <UploadCloud size={44} color="#2563eb" style={{ margin: '0 auto 0.6rem auto' }} />
-                <div style={{ fontWeight: 800, color: '#0f172a', fontSize: '1.05rem' }}>
-                  {isUploading ? t('upload_scanning') : t('upload_click')}
+                <UploadCloud size={36} color="#2563eb" style={{ margin: '0 auto 0.5rem auto' }} />
+                <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.95rem' }}>
+                  {isUploading ? 'Scanning & extracting text...' : 'Click to select prescription image'}
                 </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
-                  {t('upload_formats')}
+                <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.25rem' }}>
+                  Supports JPG, PNG (Offline OCR extraction)
                 </div>
               </label>
 
-              {/* Safety alerts display */}
-              {clinicalFlags.length > 0 && (
-                <div style={{ background: 'var(--warning-bg)', border: '1.5px solid var(--warning-border)', borderRadius: '16px', padding: '1rem', marginBottom: '1.25rem' }}>
-                  <div style={{ color: 'var(--warning-text)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.45rem', marginBottom: '0.5rem', fontSize: '0.92rem' }}>
-                    <ShieldAlert size={18} /> {t('clinical_safety_flags')} ({clinicalFlags.length})
-                  </div>
-                  {clinicalFlags.map((flag, idx) => (
-                    <div key={idx} style={{ fontSize: '0.85rem', color: '#0f172a', background: '#fff', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #fde68a', marginBottom: '0.35rem' }}>
-                      {flag.flag_type === 'abnormal_value' ? (
-                        <span>⚠️ <strong>{flag.detail.test_name}:</strong> {flag.detail.value} (Ref: {flag.detail.reference_range})</span>
-                      ) : (
-                        <span>🚫 <strong>Interaction:</strong> {flag.detail.interacting_pair?.join(' + ')} — {flag.detail.description}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {uploadedDocs.length > 0 && (
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <h4 style={{ fontSize: '0.9rem', color: 'var(--primary)', marginBottom: '0.5rem', fontWeight: 800 }}>{t('scanned_documents')} ({uploadedDocs.length})</h4>
-                  {uploadedDocs.map((doc, i) => (
-                    <div key={i} className="ocr-result-card" style={{ marginBottom: '0.5rem' }}>
-                      <strong style={{ color: '#0f172a' }}>Doc #{doc.document_id} ({doc.ocr_method})</strong> — Confidence: {(doc.confidence * 100).toFixed(0)}%
-                    </div>
-                  ))}
+                <div style={{ marginBottom: '1.25rem', background: '#f0fdf4', padding: '0.75rem', borderRadius: '10px', border: '1px solid #bbf7d0', fontSize: '0.85rem', color: '#166534' }}>
+                  Document scanned successfully ({uploadedDocs.length} attached).
                 </div>
               )}
 
               <button 
                 type="button" 
-                className="btn-primary" 
                 onClick={handleBeginInterview}
                 disabled={isLoading}
-                style={{ width: '100%', padding: '1rem', fontSize: '1.05rem' }}
+                style={{ width: '100%', padding: '0.85rem', fontSize: '1rem', fontWeight: 700, borderRadius: '12px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
               >
-                {isLoading ? t('starting_interview') : t('continue_interview_btn')}
+                <span>{isLoading ? 'Starting Interview...' : 'Continue to Interview'}</span>
                 <ArrowRight size={18} />
               </button>
             </div>
@@ -921,357 +734,213 @@ export default function PatientKiosk({ activeSessionId, setActiveSessionId, onSe
         </div>
       )}
 
-      {/* STEP 5: AI Interview + Voice Assistant */}
+      {/* STEP 5: AI Clinical Interview */}
       {step === 5 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Top Bar: Clean Patient & Status Info */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
-            padding: '0.85rem 1.25rem',
-            borderRadius: '16px',
-            border: '1px solid #cbd5e1',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                background: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '20px',
-                border: '1px solid #cbd5e1'
-              }}>
-                <User size={16} color="#2563eb" />
-                <span style={{ fontSize: '0.92rem', color: '#0f172a', fontWeight: 800 }}>
-                  {patientName || 'Patient'} {patientAge ? `(${patientAge}${patientSex.charAt(0)})` : ''}
-                </span>
-              </div>
-
-              <span style={{
-                fontSize: '0.75rem',
-                background: mode === 'ayush' ? '#ecfdf5' : '#eff6ff',
-                color: mode === 'ayush' ? '#047857' : '#1d4ed8',
-                border: mode === 'ayush' ? '1px solid #a7f3d0' : '1px solid #bfdbfe',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                fontWeight: 800,
-                letterSpacing: '0.5px'
-              }}>
-                {mode.toUpperCase()} CARE
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Header Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{patientName || 'Patient'}</span>
+              <span style={{ fontSize: '0.72rem', background: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                {mode.toUpperCase()}
               </span>
-
-              {assistedModeActive && (
-                <span style={{
-                  fontSize: '0.75rem',
-                  background: '#fffbeb',
-                  color: '#b45309',
-                  border: '1px solid #fde68a',
-                  padding: '4px 12px',
-                  borderRadius: '20px',
-                  fontWeight: 800,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.35rem'
-                }}>
-                  <HelpCircle size={13} /> {t('assisted_mode_active')}
-                </span>
-              )}
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button 
                 type="button" 
                 onClick={handleRequestHelp}
+                style={{ background: assistedModeActive ? '#fef3c7' : '#f8fafc', border: '1px solid #cbd5e1', color: assistedModeActive ? '#b45309' : '#475569', borderRadius: '8px', padding: '4px 10px', fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                {assistedModeActive ? 'Help Requested' : 'Ask for Help'}
+              </button>
+
+              <button 
+                type="button" 
+                onClick={() => setTtsEnabled(!ttsEnabled)}
+                style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 8px', color: '#475569', cursor: 'pointer' }}
+                title="Toggle Voice Speech"
+              >
+                {ttsEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Chat History Box */}
+          <div style={{ minHeight: '220px', maxHeight: '340px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
+            {chatHistory.map((item, idx) => (
+              <div 
+                key={idx} 
                 style={{
-                  background: assistedModeActive ? '#fef3c7' : '#ffffff',
-                  border: assistedModeActive ? '1.5px solid #d97706' : '1px solid #cbd5e1',
-                  color: '#b45309',
-                  borderRadius: '14px',
-                  padding: '6px 14px',
-                  fontSize: '0.82rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  boxShadow: '0 2px 6px rgba(0,0,0,0.04)'
+                  alignSelf: item.speaker === 'patient' ? 'flex-end' : 'flex-start',
+                  maxWidth: '85%',
+                  background: item.speaker === 'patient' ? '#2563eb' : '#f1f5f9',
+                  color: item.speaker === 'patient' ? '#ffffff' : '#0f172a',
+                  padding: '0.75rem 1rem',
+                  borderRadius: item.speaker === 'patient' ? '14px 14px 2px 14px' : '14px 14px 14px 2px',
+                  fontSize: '0.92rem',
+                  lineHeight: 1.45
                 }}
               >
-                <HelpCircle size={15} />
-                <span>{assistedModeActive ? t('help_requested') : t('i_need_help')}</span>
-              </button>
-
-              <button 
-                type="button" 
-                className="tts-toggle" 
-                onClick={() => setTtsEnabled(!ttsEnabled)}
-                style={{ borderRadius: '14px', padding: '6px 14px', height: 'auto' }}
-              >
-                {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-                <span>{ttsEnabled ? t('voice_on') : t('voice_off')}</span>
-              </button>
-            </div>
+                <div style={{ fontSize: '0.72rem', opacity: 0.8, marginBottom: '0.2rem', fontWeight: 600 }}>
+                  {item.speaker === 'patient' ? 'You' : 'Sahayak Assistant'}
+                </div>
+                <div>{item.text}</div>
+              </div>
+            ))}
+            {isLoading && (
+              <div style={{ alignSelf: 'flex-start', background: '#f1f5f9', padding: '0.6rem 1rem', borderRadius: '12px', fontSize: '0.85rem', color: '#64748b' }}>
+                Thinking...
+              </div>
+            )}
+            <div ref={chatEndRef} />
           </div>
 
-          {/* Structured Chat Window Box */}
-          <div className="chat-container" style={{ height: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div className="chat-history" style={{ minHeight: '260px', maxHeight: '360px', background: '#ffffff', borderRadius: '20px', border: '1.5px solid #e2e8f0', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.02)' }}>
-              {chatHistory.map((item, idx) => (
-                <div key={idx} className={`chat-bubble ${item.speaker}`}>
-                  <div className="speaker-badge">
-                    <span>{item.speaker === 'ai' ? (mode === 'ayush' ? t('ayush_assistant') : t('ai_assistant')) : patientName}</span>
-                    <span className="turn-badge">{t('turn_label')} {item.turn}</span>
-                  </div>
-                  <div>{item.text}</div>
-                </div>
+          {/* Symptom Quick Chips */}
+          {chips.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+              {chips.map((chip, idx) => (
+                <button 
+                  key={idx} 
+                  type="button" 
+                  onClick={() => submitAnswer(chip, 'touch')}
+                  disabled={isLoading}
+                  style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: '20px', padding: '0.35rem 0.85rem', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {chip}
+                </button>
               ))}
-              {isLoading && (
-                <div className="chat-bubble ai" style={{ opacity: 0.7 }}>
-                  <em>{t('thinking')}</em>
-                </div>
-              )}
-              <div ref={chatEndRef} />
             </div>
+          )}
 
-            {/* Assistant Spoken Action Bar */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '16px', border: '1px solid #e2e8f0', flexWrap: 'wrap', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {/* Quick Answers Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              {["Yes", "No"].map((opt) => (
                 <button
+                  key={opt}
                   type="button"
-                  onClick={() => speakText(currentQuestion)}
-                  style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '6px 14px', fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
-                >
-                  🔊 Repeat
-                </button>
-                <button
-                  type="button"
-                  onClick={() => submitAnswer("Could you ask that differently?", "touch")}
-                  style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '14px', padding: '6px 14px', fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}
-                >
-                  🔄 Ask differently
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    submitAnswer("I don't understand", "touch");
-                    handleRequestHelp();
-                  }}
-                  style={{ background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: '14px', padding: '6px 14px', fontSize: '0.82rem', fontWeight: 800, color: '#92400e', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                  ❓ I don't understand
-                </button>
-              </div>
-
-              {chatHistory.filter(i => i.speaker === 'patient').length >= 1 && (
-                <button
-                  type="button"
-                  onClick={triggerImmediateTokenGeneration}
+                  onClick={() => submitAnswer(opt, 'touch')}
                   disabled={isLoading}
                   style={{
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '14px',
-                    padding: '6px 16px',
-                    fontSize: '0.85rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
+                    background: opt === 'Yes' ? '#ecfdf5' : '#fef2f2',
+                    border: opt === 'Yes' ? '1px solid #a7f3d0' : '1px solid #fca5a5',
+                    color: opt === 'Yes' ? '#047857' : '#b91c1c',
+                    borderRadius: '8px',
+                    padding: '0.35rem 0.85rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
                   }}
                 >
-                  {t('complete_get_token')}
+                  {opt}
                 </button>
-              )}
-            </div>
-
-            {/* Grouped & Structured Quick Options */}
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '20px', padding: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              
-              {/* Row 1: Contextual Symptom Chips */}
-              {chips.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '0.45rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <span>💡 Suggested Answers / Symptoms</span>
-                  </div>
-                  <div className="chips-container" style={{ margin: 0, gap: '0.5rem' }}>
-                    {chips.map((chip, idx) => (
-                      <button 
-                        key={idx} 
-                        type="button" 
-                        className="chip-button"
-                        onClick={() => submitAnswer(chip, 'touch')}
-                        disabled={isLoading}
-                        style={{ background: '#eff6ff', border: '1.5px solid #bfdbfe', color: '#1e40af', borderRadius: '14px', padding: '0.45rem 1rem', fontSize: '0.88rem' }}
-                      >
-                        {chip}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Divider if symptoms exist */}
-              {chips.length > 0 && <div style={{ height: '1px', background: '#f1f5f9' }} />}
-
-              {/* Row 2: Direct Answers (Yes / No) & Action / Skip Controls */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-                
-                {/* Direct Yes / No Group */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', marginRight: '0.2rem' }}>Answer:</span>
-                  {["Yes", "No"].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => submitAnswer(opt, 'touch')}
-                      disabled={isLoading}
-                      style={{
-                        background: opt === 'Yes' ? '#ecfdf5' : '#fef2f2',
-                        border: opt === 'Yes' ? '1.5px solid #a7f3d0' : '1.5px solid #fca5a5',
-                        color: opt === 'Yes' ? '#047857' : '#b91c1c',
-                        borderRadius: '12px',
-                        padding: '0.4rem 1.1rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 800,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {opt === 'Yes' ? '✓ Yes' : '✕ No'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Auxiliary Navigation Controls Group */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {["I don't know", "Skip", "Prefer not to answer"].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => submitAnswer(opt, 'touch')}
-                      disabled={isLoading}
-                      style={{
-                        background: '#f8fafc',
-                        border: '1px solid #cbd5e1',
-                        color: '#475569',
-                        borderRadius: '12px',
-                        padding: '0.4rem 0.85rem',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {opt === "I don't know" ? "❓ I don't know" : opt === 'Skip' ? '⏭ Skip' : '🔒 Prefer not to answer'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Text & Voice Input Bar */}
-            <form 
-              onSubmit={(e) => { e.preventDefault(); submitAnswer(inputAnswer, isListening ? 'voice' : 'touch'); }}
-              className="chat-input-row"
-              style={{ background: '#ffffff', padding: '0.5rem', borderRadius: '24px', border: '1.5px solid #cbd5e1', boxShadow: '0 4px 14px rgba(0,0,0,0.03)' }}
-            >
-              <input 
-                type="text" 
-                className="chat-text-input" 
-                placeholder={isListening ? t('listening') : t('type_placeholder')} 
-                value={inputAnswer}
-                onChange={(e) => setInputAnswer(e.target.value)}
+              ))}
+              <button
+                type="button"
+                onClick={() => submitAnswer("Skip", 'touch')}
                 disabled={isLoading}
-                style={{ border: 'none', boxShadow: 'none', background: 'transparent' }}
-              />
-              <button 
-                type="button" 
-                className={`mic-btn ${isListening ? 'listening' : ''}`}
-                onClick={toggleVoiceInput}
-                title="Voice Input"
-                style={{ width: '44px', height: '44px' }}
+                style={{ background: '#f8fafc', border: '1px solid #e2e8f0', color: '#64748b', borderRadius: '8px', padding: '0.35rem 0.75rem', fontSize: '0.8rem', cursor: 'pointer' }}
               >
-                {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                Skip
               </button>
-              <button type="submit" className="send-btn" disabled={!inputAnswer.trim() || isLoading} style={{ borderRadius: '18px', padding: '0.75rem 1.4rem' }}>
-                <span>{t('send')}</span>
-                <Send size={16} />
+            </div>
+
+            {chatHistory.filter(i => i.speaker === 'patient').length >= 1 && (
+              <button
+                type="button"
+                onClick={triggerImmediateTokenGeneration}
+                disabled={isLoading}
+                style={{ background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', padding: '0.4rem 0.9rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Complete & Get Token
               </button>
-            </form>
+            )}
           </div>
+
+          {/* Input Row */}
+          <form 
+            onSubmit={(e) => { e.preventDefault(); submitAnswer(inputAnswer, isListening ? 'voice' : 'touch'); }}
+            style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}
+          >
+            <input 
+              type="text" 
+              placeholder={isListening ? 'Listening...' : 'Type your reply...'} 
+              value={inputAnswer}
+              onChange={(e) => setInputAnswer(e.target.value)}
+              disabled={isLoading}
+              style={{ flex: 1, padding: '0.75rem 1rem', borderRadius: '12px', border: '1px solid #cbd5e1', fontSize: '0.92rem' }}
+            />
+            <button 
+              type="button" 
+              onClick={toggleVoiceInput}
+              style={{
+                background: isListening ? '#dc2626' : '#f1f5f9',
+                color: isListening ? '#ffffff' : '#334155',
+                border: '1px solid #cbd5e1',
+                borderRadius: '12px',
+                width: '44px',
+                height: '44px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Voice Input"
+            >
+              {isListening ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+            <button 
+              type="submit" 
+              disabled={!inputAnswer.trim() || isLoading}
+              style={{ background: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '12px', padding: '0 1.25rem', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer' }}
+            >
+              Send
+            </button>
+          </form>
         </div>
       )}
 
-      {/* STEP 6: Immediate Token Ticket Display (§0 & §2e & §2f) */}
+      {/* STEP 6: Token Ticket */}
       {step === 6 && tokenData && (
-        <div style={{ textAlign: 'center', animation: 'slideUp 0.4s ease', maxWidth: '600px', margin: '1rem auto' }}>
+        <div style={{ textAlign: 'center', padding: '1rem 0' }}>
           <div style={{
-            background: tokenData.priority ? '#991b1b' : '#0f172a',
-            borderRadius: '16px',
-            padding: '2.5rem 2rem',
+            background: tokenData.priority ? '#fef2f2' : '#f8fafc',
+            borderRadius: '14px',
+            padding: '2rem 1.5rem',
             marginBottom: '1.5rem',
-            color: '#ffffff',
-            border: tokenData.priority ? '2px solid #ef4444' : '1px solid #334155',
-            boxShadow: '0 4px 20px rgba(0,0,0,0.15)'
+            border: tokenData.priority ? '1.5px solid #fca5a5' : '1px solid #e2e8f0',
           }}>
-            <div style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '2px', color: '#94a3b8', marginBottom: '0.5rem', fontWeight: 800 }}>
-              {t('your_token')}
+            <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#64748b', marginBottom: '0.4rem', fontWeight: 700 }}>
+              OPD Token Number
             </div>
             
-            {/* 6-char Token */}
             <div style={{
-              fontSize: '4.2rem',
+              fontSize: '3.5rem',
               fontWeight: 900,
-              letterSpacing: '6px',
-              color: tokenData.priority ? '#fecaca' : '#38bdf8',
-              marginBottom: '1rem',
+              letterSpacing: '4px',
+              color: tokenData.priority ? '#dc2626' : '#2563eb',
+              marginBottom: '0.75rem',
               fontFamily: 'monospace',
             }}>
               {tokenData.token}
             </div>
 
-            <div style={{ width: '60px', height: '2px', background: 'rgba(255,255,255,0.2)', margin: '0 auto 1.25rem auto' }} />
-
-            {/* Routing Instruction Message */}
-            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: tokenData.priority ? '#fecaca' : '#4ade80', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: tokenData.priority ? '#991b1b' : '#0f172a', marginBottom: '0.4rem' }}>
               {tokenData.message}
             </div>
 
-            {tokenData.priority ? (
-              <div style={{
-                marginTop: '1rem',
-                display: 'inline-block',
-                background: '#dc2626',
-                color: '#fff',
-                padding: '0.4rem 1.2rem',
-                borderRadius: '999px',
-                fontSize: '0.82rem',
-                fontWeight: 900,
-                letterSpacing: '1px',
-                textTransform: 'uppercase',
-              }}>
-                {t('priority_reception_badge')}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.88rem', color: '#94a3b8', marginTop: '0.5rem' }}>
-                {t('async_brief_note')} {tokenData.counter_number}.
-              </div>
-            )}
+            <div style={{ fontSize: '0.84rem', color: '#64748b' }}>
+              Your clinical brief is being prepared for the doctor booth.
+            </div>
           </div>
 
-          <div style={{ background: '#f0fdf4', border: '1.5px solid #bbf7d0', borderRadius: '16px', padding: '1.25rem', marginBottom: '1.75rem' }}>
-            <CheckCircle2 size={28} color="#10b981" style={{ margin: '0 auto 0.4rem auto' }} />
-            <h4 style={{ color: '#065f46', fontSize: '1.05rem', fontWeight: 800, margin: '0 0 0.25rem 0' }}>{t('intake_complete_title')}</h4>
-            <p style={{ color: '#047857', fontSize: '0.88rem', margin: 0 }}>
-              You may take your token ticket and proceed as instructed above. Summary brief generation is processing in background.
-            </p>
-          </div>
-
-          <button type="button" className="btn-primary" onClick={handleResetSession} style={{ padding: '1rem 2.5rem', fontSize: '1.1rem' }}>
-            {t('start_next')}
+          <button 
+            type="button" 
+            onClick={handleResetSession} 
+            style={{ padding: '0.85rem 2rem', fontSize: '1rem', fontWeight: 700, borderRadius: '10px', background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+          >
+            Start Next Patient Intake
           </button>
         </div>
       )}
